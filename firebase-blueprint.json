@@ -1,0 +1,121 @@
+{
+  "entities": {
+    "ScannedDocument": {
+      "title": "ScannedDocument",
+      "description": "A scanned site or office document with Gemini Vision OCR transcript, structured metadata, dual date indexing, and searchable PDF reference.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Authenticated owner UID matching the parent user document path."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable document title (1-200 chars)."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "MATERIAL_SLIP",
+            "INSPECTION_PROTOCOL",
+            "DELIVERY_CHALLAN",
+            "INVOICE_RECEIPT",
+            "SITE_REPORT",
+            "OTHER"
+          ],
+          "description": "Document classification category."
+        },
+        "documentDateIso": {
+          "type": "string",
+          "description": "Date written or printed on the document in YYYY-MM-DD format, or empty string if blank on the form."
+        },
+        "filedDateIso": {
+          "type": "string",
+          "description": "Date the document was filed in DocFolio in YYYY-MM-DD format."
+        },
+        "referenceNumber": {
+          "type": "string",
+          "description": "Slip number, form code, or challan reference (e.g. 6717 / FCN-ST-13)."
+        },
+        "organization": {
+          "type": "string",
+          "description": "Issuing company or project name (e.g. Kalpataru Projects International Ltd.)."
+        },
+        "contractorOrParty": {
+          "type": "string",
+          "description": "Sub-contractor, department, scheme name, or counterparty."
+        },
+        "summary": {
+          "type": "string",
+          "description": "Concise summary of extracted items, quantities, or inspection status."
+        },
+        "extractedFields": {
+          "type": "array",
+          "description": "Up to 30 key-value strings extracted from tables and handwritten fields."
+        },
+        "ocrFullText": {
+          "type": "string",
+          "description": "Full searchable verbatim OCR transcript of printed and handwritten text."
+        },
+        "localImageFileName": {
+          "type": "string",
+          "description": "Relative filename of the locally cached full-resolution scan image."
+        },
+        "localPdfFileName": {
+          "type": "string",
+          "description": "Relative filename of the locally generated searchable PDF."
+        },
+        "previewBase64": {
+          "type": "string",
+          "description": "Compact compressed JPEG thumbnail encoded as Base64 for cross-device preview and PDF regeneration."
+        },
+        "pageCount": {
+          "type": "integer",
+          "description": "Number of scanned pages (1-50)."
+        },
+        "starred": {
+          "type": "boolean",
+          "description": "Whether the document is starred for quick boss review."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp; clients must submit FieldValue.serverTimestamp()."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp; clients must submit FieldValue.serverTimestamp()."
+        }
+      },
+      "required": [
+        "userId",
+        "title",
+        "category",
+        "documentDateIso",
+        "filedDateIso",
+        "referenceNumber",
+        "organization",
+        "contractorOrParty",
+        "summary",
+        "extractedFields",
+        "ocrFullText",
+        "localImageFileName",
+        "localPdfFileName",
+        "previewBase64",
+        "pageCount",
+        "starred",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/documents/{docId}": {
+      "schema": {
+        "$ref": "#/entities/ScannedDocument"
+      },
+      "description": "User-owned scanned documents indexed by filed date, document date, and OCR full text."
+    }
+  }
+}

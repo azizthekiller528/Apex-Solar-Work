@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <files-path name="docfolio_files" path="docfolio/" />
+    <cache-path name="docfolio_cache" path="captures/" />
+    <cache-path name="docfolio_exports" path="exports/" />
+</paths>

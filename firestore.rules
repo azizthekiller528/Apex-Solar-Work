@@ -1,0 +1,152 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Reusable primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidIsoDate(val) {
+      return val is string && val.size() == 10 && val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidOptionalIsoDate(val) {
+      return val is string && (val.size() == 0 || (val.size() == 10 && val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
+    }
+
+    function isValidCategory(cat) {
+      return cat is string && cat.size() <= 40 && cat in [
+        'MATERIAL_SLIP',
+        'INSPECTION_PROTOCOL',
+        'DELIVERY_CHALLAN',
+        'INVOICE_RECEIPT',
+        'SITE_REPORT',
+        'OTHER'
+      ];
+    }
+
+    function hasExactDocumentKeys(data) {
+      let allowedKeys = [
+        'userId',
+        'title',
+        'category',
+        'documentDateIso',
+        'filedDateIso',
+        'referenceNumber',
+        'organization',
+        'contractorOrParty',
+        'summary',
+        'extractedFields',
+        'ocrFullText',
+        'localImageFileName',
+        'localPdfFileName',
+        'previewBase64',
+        'pageCount',
+        'starred',
+        'createdAt',
+        'updatedAt'
+      ];
+      return data.keys().hasAll(allowedKeys) && data.keys().hasOnly(allowedKeys);
+    }
+
+    function isValidDocument(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId == request.auth.uid &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             isValidCategory(data.category) &&
+             isValidOptionalIsoDate(data.documentDateIso) &&
+             isValidIsoDate(data.filedDateIso) &&
+             data.referenceNumber is string && data.referenceNumber.size() <= 120 &&
+             data.organization is string && data.organization.size() <= 200 &&
+             data.contractorOrParty is string && data.contractorOrParty.size() <= 200 &&
+             data.summary is string && data.summary.size() <= 1000 &&
+             data.extractedFields is list && data.extractedFields.size() <= 30 &&
+             (data.extractedFields.size() == 0 || (data.extractedFields[0] is string && data.extractedFields[0].size() <= 300)) &&
+             data.ocrFullText is string && data.ocrFullText.size() <= 50000 &&
+             data.localImageFileName is string && data.localImageFileName.size() <= 200 &&
+             data.localPdfFileName is string && data.localPdfFileName.size() <= 200 &&
+             data.previewBase64 is string && data.previewBase64.size() <= 160000 &&
+             data.pageCount is int && data.pageCount >= 1 && data.pageCount <= 50 &&
+             data.starred is bool &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isEditDocumentAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'title',
+        'category',
+        'documentDateIso',
+        'filedDateIso',
+        'referenceNumber',
+        'organization',
+        'contractorOrParty',
+        'summary',
+        'extractedFields',
+        'ocrFullText',
+        'localPdfFileName',
+        'updatedAt'
+      ]);
+    }
+
+    function isToggleStarAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'starred',
+        'updatedAt'
+      ]);
+    }
+
+    function isUpdateLocalFilesAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'localImageFileName',
+        'localPdfFileName',
+        'previewBase64',
+        'updatedAt'
+      ]);
+    }
+
+    match /users/{userId}/documents/{docId} {
+      allow get: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+      allow list: if isOwner(userId);
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(docId) &&
+                       hasExactDocumentKeys(incoming()) &&
+                       incoming().userId == userId &&
+                       isValidDocument(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidId(docId) &&
+                       isValidDocument(incoming()) &&
+                       hasExactDocumentKeys(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (isEditDocumentAction() || isToggleStarAction() || isUpdateLocalFilesAction());
+
+      allow delete: if isOwner(userId) && isValidId(userId) && isValidId(docId);
+    }
+  }
+}

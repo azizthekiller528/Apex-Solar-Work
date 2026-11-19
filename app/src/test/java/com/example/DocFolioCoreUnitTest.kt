@@ -1,0 +1,164 @@
+package com.example
+
+import android.content.Context
+import android.graphics.Bitmap
+import androidx.test.core.app.ApplicationProvider
+import com.example.data.GeminiOcrService
+import com.example.model.DateMatchMode
+import com.example.model.DocumentCategory
+import com.example.model.ScannedDocument
+import com.example.util.DateSearchParser
+import com.example.util.SearchablePdfGenerator
+import com.example.viewmodel.DocFolioViewModel
+import com.example.viewmodel.VaultFilterState
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [36])
+class DocFolioCoreUnitTest {
+
+    @Test
+    fun parseDateQuery_handlesBossSlashDatesWithDisambiguation() {
+        val ambiguous = DateSearchParser.parseDateQuery("12/1/2026")
+        assertNotNull(ambiguous)
+        assertEquals("2026-01-12", ambiguous!!.primaryIso) // DD/MM/YYYY default
+        assertEquals("2026-12-01", ambiguous.alternateIso) // MM/DD/YYYY alternate
+
+        val unambiguousSlipDate = DateSearchParser.parseDateQuery("24/02/2026")
+        assertNotNull(unambiguousSlipDate)
+        assertEquals("2026-02-24", unambiguousSlipDate!!.primaryIso)
+        assertNull(unambiguousSlipDate.alternateIso)
+
+        val iso = DateSearchParser.parseDateQuery("2026-01-12")
+        assertNotNull(iso)
+        assertEquals("2026-01-12", iso!!.primaryIso)
+
+        val friendly = DateSearchParser.parseDateQuery("12 Jan 2026")
+        assertNotNull(friendly)
+        assertEquals("2026-01-12", friendly!!.primaryIso)
+
+        assertNull(DateSearchParser.parseDateQuery("31/02/2026"))
+        assertNull(DateSearchParser.parseDateQuery("Apex Solar"))
+    }
+
+    @Test
+    fun utcMillisRoundTrip_preservesExactDateWithoutTimezoneDrift() {
+        val iso = "2026-02-24"
+        val millis = DateSearchParser.isoToUtcMillis(iso)
+        assertNotNull(millis)
+        assertEquals(iso, DateSearchParser.utcMillisToIso(millis!!))
+        assertEquals("24/02/2026", DateSearchParser.formatSlashDate(iso))
+        assertEquals("24 Feb 2026", DateSearchParser.formatFriendlyDate(iso))
+    }
+
+    @Test
+    fun vaultFilter_findsDocumentsByBossDateAndOcrKeywords() {
+        val slip = ScannedDocument(
+            id = "doc_slip_6717",
+            userId = "uid_1",
+            title = "Material Requisition Slip #6717 — Nut Bolt 8mm",
+            category = DocumentCategory.MATERIAL_SLIP.name,
+            documentDateIso = "2026-02-24",
+            filedDateIso = "2026-01-12",
+            referenceNumber = "6717 / FCN-ST-13 (R1)",
+            organization = "Kalpataru Projects International Ltd.",
+            contractorOrParty = "Apex Solar — MEP",
+            ocrFullText = "Nut Bolt 8mm Required 440 Issued 440 Returnable"
+        )
+        val protocol = ScannedDocument(
+            id = "doc_solar_proto",
+            userId = "uid_1",
+            title = "Solar System Inspection Protocol",
+            category = DocumentCategory.INSPECTION_PROTOCOL.name,
+            documentDateIso = "",
+            filedDateIso = "2026-02-25",
+            organization = "Kalpataru / Jal Jeevan Mission",
+            ocrFullText = "PV POWER TECHNOLOGIES PVT LTD Earthing Resistance Test"
+        )
+        val docs = listOf(slip, protocol)
+
+        // Boss types "12/1/2026" -> finds document filed on 2026-01-12
+        val byFiled = DocFolioViewModel.applyVaultFilter(
+            docs,
+            VaultFilterState(query = "12/1/2026", dateMatchMode = DateMatchMode.FILED_ONLY)
+        )
+        assertEquals(1, byFiled.size)
+        assertEquals("doc_slip_6717", byFiled.first().id)
+
+        // Boss types "24/02/2026" -> finds document with Document Date 2026-02-24
+        val byDocDate = DocFolioViewModel.applyVaultFilter(
+            docs,
+            VaultFilterState(query = "24/02/2026", dateMatchMode = DateMatchMode.EITHER)
+        )
+        assertEquals(1, byDocDate.size)
+        assertEquals("doc_slip_6717", byDocDate.first().id)
+
+        // Explicit calendar date + keyword search combo works together
+        val combo = DocFolioViewModel.applyVaultFilter(
+            docs,
+            VaultFilterState(query = "Nut Bolt", explicitDateIso = "2026-01-12")
+        )
+        assertEquals(1, combo.size)
+
+        // OCR text search finds inner table vendor
+        val byOcr = DocFolioViewModel.applyVaultFilter(
+            docs,
+            VaultFilterState(query = "PV POWER TECHNOLOGIES")
+        )
+        assertEquals(1, byOcr.size)
+        assertEquals("doc_solar_proto", byOcr.first().id)
+    }
+
+    @Test
+    fun geminiOcrParser_normalizesValidAndBlankDatePayloads() {
+        val service = GeminiOcrService()
+        val json = """
+            {
+              "title": "Material Requisition Slip #6717",
+              "category": "MATERIAL_SLIP",
+              "documentDateIso": "24/02/2026",
+              "referenceNumber": "6717",
+              "organization": "Kalpataru Projects International Ltd.",
+              "contractorOrParty": "Apex Solar",
+              "summary": "440 Nut Bolt 8mm issued.",
+              "extractedFields": ["Item: Nut Bolt 8mm", "Issued: 440"],
+              "ocrFullText": "KALPATARU 6717 Apex Solar Nut Bolt 8mm 440"
+            }
+        """.trimIndent()
+        val result = service.parseExtractionJson(json)
+        assertEquals("2026-02-24", result.documentDateIso)
+        assertEquals(DocumentCategory.MATERIAL_SLIP, result.category)
+        assertEquals(2, result.extractedFields.size)
+        assertTrue(result.ocrFullText.contains("Apex Solar"))
+    }
+
+    @Test
+    fun pdfWrapTextAndHighlight_handleLongTokensAndMultiLineTranscripts() {
+        val paint = android.graphics.Paint().apply { textSize = 10f }
+        val longTranscript = "KALPATARU PROJECTS INTERNATIONAL LTD.\n\n" +
+            "FCN-ST-13_R1_SUPER_LONG_REFERENCE_CODE_1234567890_ABCDEFGHIJKLMN\n" +
+            "Nut Bolt 8mm Required 440 Issued 440 Returnable Apex Solar MEP"
+
+        val wrapped = SearchablePdfGenerator.wrapText(longTranscript, paint, 120f)
+        assertTrue(wrapped.isNotEmpty())
+        assertTrue(wrapped.any { it.contains("KALPATARU") })
+        assertTrue(wrapped.any { it.contains("440") })
+
+        val (annotated, matches) = com.example.ui.buildHighlightedText(
+            source = "Nut Bolt 8mm (Required: 440, Issued: 440) — nut bolt",
+            needle = "nut bolt",
+            highlightBg = androidx.compose.ui.graphics.Color.Yellow,
+            highlightFg = androidx.compose.ui.graphics.Color.Black
+        )
+        assertEquals(2, matches)
+        assertTrue(annotated.spanStyles.size == 2)
+    }
+}

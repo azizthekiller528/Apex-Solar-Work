@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">DocFolio</string>
+    <string name="tagline">OCR Document Vault &amp; Date Index</string>
+    <string name="sign_in_google">Sign in with Google</string>
+    <string name="sign_out">Sign out</string>
+    <string name="nav_vault">Vault</string>
+    <string name="nav_by_date">By Date</string>
+    <string name="nav_starred">Starred</string>
+    <string name="action_scan_document">Scan Doc</string>
+    <string name="search_placeholder">Date (12/1/2026), slip #, contractor, text…</string>
+    <string name="camera_permission_rationale">Camera access is needed to photograph physical slips and protocols directly.</string>
+    <string name="camera_permission_denied">Camera permission was denied. You can still pick document photos from Gallery.</string>
+    <string name="export_day_pdf">Export Day PDF</string>
+    <string name="share_pdf">Share PDF</string>
+    <string name="open_pdf">Open PDF</string>
+    <string name="save_pdf">Save PDF</string>
+    <string name="save_and_create_pdf">Save &amp; Generate Searchable PDF</string>
+    <string name="empty_vault_title">No documents filed yet</string>
+    <string name="empty_vault_subtitle">Tap Scan Doc to capture a site slip, inspection protocol, or challan with AI OCR into a searchable PDF.</string>
+</resources>

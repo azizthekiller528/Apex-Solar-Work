@@ -1,0 +1,6 @@
+{
+  "name": "DocFolio",
+  "description": "Scan site and office document photos into OCR-searchable PDFs and look up filed documents by exact date or keyword.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

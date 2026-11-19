@@ -17,4 +17,18 @@
     <string name="save_and_create_pdf">Save &amp; Generate Searchable PDF</string>
     <string name="empty_vault_title">No documents filed yet</string>
     <string name="empty_vault_subtitle">Tap Scan Doc to capture a site slip, inspection protocol, or challan with AI OCR into a searchable PDF.</string>
+    <string name="camera_scan_title">Document Scanner</string>
+    <string name="camera_align_hint">Align slip or protocol inside frame • Tap to focus</string>
+    <string name="camera_capture_button">Capture document photo</string>
+    <string name="camera_close_button">Close camera</string>
+    <string name="camera_switch_lens">Switch camera</string>
+    <string name="camera_flash_auto">Flash: Auto</string>
+    <string name="camera_flash_on">Flash: On</string>
+    <string name="camera_flash_off">Flash: Off</string>
+    <string name="camera_open_gallery">Pick from gallery</string>
+    <string name="camera_permission_title">Camera Access Required</string>
+    <string name="camera_permission_grant">Allow Camera Access</string>
+    <string name="camera_permission_settings">Open App Settings</string>
+    <string name="camera_unavailable_title">Camera Unavailable</string>
+    <string name="camera_unavailable_body">No active camera could be opened on this device. You can still scan documents by picking a photo from Gallery.</string>
 </resources>

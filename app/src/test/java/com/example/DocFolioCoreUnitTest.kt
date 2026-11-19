@@ -1,9 +1,11 @@
 package com.example
 
 import android.content.Context
-import android.graphics.Bitmap
+import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.GeminiOcrService
+import com.example.data.local.DocFolioDatabase
+import com.example.data.local.LocalDocumentCacheRepository
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
@@ -11,6 +13,7 @@ import com.example.util.DateSearchParser
 import com.example.util.SearchablePdfGenerator
 import com.example.viewmodel.DocFolioViewModel
 import com.example.viewmodel.VaultFilterState
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -160,5 +163,65 @@ class DocFolioCoreUnitTest {
         )
         assertEquals(2, matches)
         assertTrue(annotated.spanStyles.size == 2)
+    }
+
+    @Test
+    fun roomLocalCache_storesQueriesByDateAndOcrAndSyncsCleanly() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, DocFolioDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val cache = LocalDocumentCacheRepository(db.documentDao())
+            val slip = ScannedDocument(
+                id = "doc_slip_6717",
+                userId = "uid_1",
+                title = "Material Requisition Slip #6717",
+                category = DocumentCategory.MATERIAL_SLIP.name,
+                documentDateIso = "2026-02-24",
+                filedDateIso = "2026-01-12",
+                localImageFileName = "doc_slip_6717_scan.jpg",
+                localPdfFileName = "doc_slip_6717_searchable.pdf",
+                ocrFullText = "KALPATARU Nut Bolt 8mm Apex Solar Returnable"
+            )
+            val protocol = ScannedDocument(
+                id = "doc_solar_proto",
+                userId = "uid_1",
+                title = "Solar System Inspection Protocol",
+                category = DocumentCategory.INSPECTION_PROTOCOL.name,
+                documentDateIso = "",
+                filedDateIso = "2026-02-25",
+                localImageFileName = "doc_solar_proto_scan.jpg",
+                localPdfFileName = "doc_solar_proto_searchable.pdf",
+                ocrFullText = "PV POWER TECHNOLOGIES Earthing Strip"
+            )
+
+            cache.syncFromCloud("uid_1", listOf(slip, protocol), "/data/docfolio")
+
+            val allCached = cache.observeCachedDocuments("uid_1").first()
+            assertEquals(2, allCached.size)
+
+            val jan12 = cache.observeCachedDocumentsByDate("uid_1", "2026-01-12").first()
+            assertEquals(1, jan12.size)
+            assertEquals("doc_slip_6717_searchable.pdf", jan12.first().fileName)
+            assertEquals("/data/docfolio/doc_slip_6717_scan.jpg", jan12.first().localImagePath)
+            assertEquals("/data/docfolio/doc_slip_6717_searchable.pdf", jan12.first().localPdfPath)
+
+            val feb24ByDocDate = cache.observeCachedDocumentsByDate("uid_1", "2026-02-24").first()
+            assertEquals(1, feb24ByDocDate.size)
+            assertEquals("doc_slip_6717", feb24ByDocDate.first().id)
+
+            val ocrSearch = cache.searchCachedDocuments("uid_1", "Apex Solar").first()
+            assertEquals(1, ocrSearch.size)
+            assertEquals("doc_slip_6717", ocrSearch.first().id)
+
+            // Syncing with only protocol prunes removed slip cleanly
+            cache.syncFromCloud("uid_1", listOf(protocol), "/data/docfolio")
+            val afterPrune = cache.observeCachedDocuments("uid_1").first()
+            assertEquals(1, afterPrune.size)
+            assertEquals("doc_solar_proto", afterPrune.first().id)
+        } finally {
+            db.close()
+        }
     }
 }

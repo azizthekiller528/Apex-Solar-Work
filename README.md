@@ -39,7 +39,8 @@ It is designed for field teams, site engineers, and managers to capture printed 
 | UI | Jetpack Compose, Material Design 3, Adaptive Navigation (`NavigationBar` / `NavigationRail`) |
 | Architecture | MVVM + `StateFlow` / `ViewModel` + Repository pattern |
 | AI / OCR | Firebase AI Logic (`Firebase.ai`) |
-| Database & Auth | Cloud Firestore + Firebase Auth (Google Sign-In via Credential Manager) |
+| Camera & Permissions | CameraX (`PreviewView`, `ImageCapture`) + Accompanist Permissions |
+| Database & Auth | Cloud Firestore + Room SQLite local metadata cache (KSP) + Firebase Auth (Google Sign-In via Credential Manager) |
 | Security | Firebase App Check + Zero-Trust Firestore Security Rules |
 | PDF Engine | Native Android `android.graphics.pdf.PdfDocument` + `FileProvider` |
 | Image Loading | Coil Compose |
@@ -55,7 +56,8 @@ app/src/main/java/com/example/
 ├── MainActivity.kt                  # App entry point, App Check init, edge-to-edge & auth gate
 ├── data/
 │   ├── DocumentRepository.kt        # Cloud Firestore real-time sync & CRUD operations
-│   └── GeminiOcrService.kt          # Firebase AI Logic structured OCR extraction
+│   ├── GeminiOcrService.kt          # Firebase AI Logic structured OCR extraction
+│   └── local/                       # Room SQLite metadata cache (DocumentEntity, DAO, Database, Repository)
 ├── firebase/
 │   ├── AppCheckSetup.kt             # Debug & Play/reCAPTCHA App Check initialization
 │   ├── AuthHelper.kt                # Credential Manager Google Sign-In & auth state flow
@@ -64,6 +66,7 @@ app/src/main/java/com/example/
 │   └── DocumentModels.kt            # ScannedDocument, DocumentCategory, OCR & UI state models
 ├── ui/
 │   ├── AuthScreen.kt                # Google Sign-In screen
+│   ├── CameraView.kt                # CameraX viewfinder, framing reticle, flash & Accompanist CAMERA flow
 │   ├── DocFolioApp.kt               # Adaptive scaffold, camera/picker/SAF launchers
 │   ├── VaultScreen.kt               # Main document vault, smart search & category filters
 │   ├── DateLookupScreen.kt          # Boss Date Lookup calendar & daily report export
@@ -76,7 +79,7 @@ app/src/main/java/com/example/
 │   ├── ImageStorageHelper.kt        # EXIF-aware local image & compact Base64 preview helper
 │   └── SearchablePdfGenerator.kt    # Native A4 searchable PDF & daily bundle generator
 └── viewmodel/
-    └── DocFolioViewModel.kt         # State management, filtering, OCR & PDF orchestration
+    └── DocFolioViewModel.kt         # State management, filtering, Room sync, OCR & PDF orchestration
 ```
 
 ---

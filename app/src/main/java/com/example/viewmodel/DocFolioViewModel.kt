@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.DocumentRepository
 import com.example.data.GeminiOcrService
+import com.example.data.local.DocumentEntity
+import com.example.data.local.LocalDocumentCacheRepository
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
@@ -27,7 +29,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -84,11 +88,24 @@ sealed interface OneShotEvent {
 class DocFolioViewModel(
     private val repository: DocumentRepository,
     private val ocrService: GeminiOcrService,
-    private val currentUserId: String
+    private val currentUserId: String,
+    private val localCache: LocalDocumentCacheRepository? = null,
+    private val docsDirPath: String = ""
 ) : ViewModel() {
 
     val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
         repository.observeDocuments(currentUserId)
+            .onEach { docs ->
+                if (localCache != null) {
+                    try {
+                        localCache.syncFromCloud(currentUserId, docs, docsDirPath)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Local Room cache sync warning: ${e.message}")
+                    }
+                }
+            }
             .map<List<ScannedDocument>, UiState<List<ScannedDocument>>> { UiState.Success(it) }
             .catch { error ->
                 val firestoreError = generateSequence(error) { it.cause }
@@ -103,6 +120,19 @@ class DocFolioViewModel(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000L),
                 initialValue = UiState.Loading
+            )
+
+    val cachedLocalDocuments: StateFlow<List<DocumentEntity>> =
+        (localCache?.observeCachedDocuments(currentUserId) ?: emptyFlow())
+            .catch { error ->
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Local Room cache read warning: ${error.message}")
+                emit(emptyList())
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = emptyList()
             )
 
     private val _filterState = MutableStateFlow(VaultFilterState())
@@ -332,6 +362,7 @@ class DocFolioViewModel(
                 val result = repository.createDocument(docId, newDoc)
                 result.fold(
                     onSuccess = { savedId ->
+                        runCatching { localCache?.upsertDocument(newDoc, docsDirPath) }
                         _scanState.value = ScanFlowState.Idle
                         _selectedDateLookupIso.value = newDoc.filedDateIso
                         _events.emit(OneShotEvent.ShowMessage("Saved & generated searchable PDF"))
@@ -419,7 +450,10 @@ class DocFolioViewModel(
                 localPdfFileName = pdfFileName
             )
             res.fold(
-                onSuccess = { _events.emit(OneShotEvent.ShowMessage("Document & PDF updated")) },
+                onSuccess = {
+                    runCatching { localCache?.upsertDocument(updatedCopy, docsDirPath) }
+                    _events.emit(OneShotEvent.ShowMessage("Document & PDF updated"))
+                },
                 onFailure = { err ->
                     _events.emit(OneShotEvent.ShowMessage(err.localizedMessage ?: "Update failed"))
                 }
@@ -439,6 +473,7 @@ class DocFolioViewModel(
         viewModelScope.launch {
             repository.deleteDocument(doc.id).fold(
                 onSuccess = {
+                    runCatching { localCache?.deleteById(doc.id) }
                     ImageStorageHelper.deleteLocalFiles(
                         context = context,
                         imageFileName = doc.localImageFileName,

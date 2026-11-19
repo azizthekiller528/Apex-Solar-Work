@@ -1,9 +1,6 @@
 package com.example.ui
 
-import android.Manifest
 import android.content.ActivityNotFoundException
-import android.content.pm.PackageManager
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,7 +61,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -74,6 +70,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.R
 import com.example.data.DocumentRepository
 import com.example.data.GeminiOcrService
+import com.example.data.local.DocFolioDatabase
+import com.example.data.local.LocalDocumentCacheRepository
 import com.example.firebase.signOut
 import com.example.model.UiState
 import com.example.ui.components.ScanSourceBottomSheet
@@ -120,10 +118,13 @@ fun DocFolioAuthenticatedRoot(
                 }
                 val databaseId = app.getString(R.string.firestore_database_id)
                 val db = FirebaseFirestore.getInstance(databaseId)
+                val localDb = DocFolioDatabase.getInstance(app)
                 DocFolioViewModel(
                     repository = DocumentRepository(db),
                     ocrService = GeminiOcrService(),
-                    currentUserId = currentUser.uid
+                    currentUserId = currentUser.uid,
+                    localCache = LocalDocumentCacheRepository(localDb.documentDao()),
+                    docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath
                 )
             }
         }
@@ -140,61 +141,11 @@ fun DocFolioAuthenticatedRoot(
     var currentTab by remember { mutableStateOf(MainTab.VAULT) }
     var selectedDocId by remember { mutableStateOf<String?>(null) }
     var showScanSourceSheet by remember { mutableStateOf(false) }
+    var showCameraView by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
 
-    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var pendingSavePdfSource by remember { mutableStateOf<File?>(null) }
-
-    // Camera photo capture launcher
-    val takePictureLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        val uri = pendingCameraUri
-        pendingCameraUri = null
-        if (success && uri != null) {
-            viewModel.startScanFromUri(context, uri)
-        }
-    }
-
-    fun launchCameraCapture() {
-        try {
-            val (_, uri) = ImageStorageHelper.createTempCaptureFile(context)
-            pendingCameraUri = uri
-            takePictureLauncher.launch(uri)
-        } catch (e: Exception) {
-            scope.launch {
-                snackbarHostState.showSnackbar(
-                    e.localizedMessage ?: "Unable to launch camera on this device."
-                )
-            }
-        }
-    }
-
-    // Runtime CAMERA permission launcher (Google Play minimal permission compliance)
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            launchCameraCapture()
-        } else {
-            scope.launch {
-                snackbarHostState.showSnackbar(context.getString(R.string.camera_permission_denied))
-            }
-        }
-    }
-
-    fun requestCameraFlow() {
-        val granted = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            launchCameraCapture()
-        } else {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
 
     // Zero-permission Android Photo Picker launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
@@ -296,6 +247,24 @@ fun DocFolioAuthenticatedRoot(
             onProceedManual = viewModel::proceedManualFromError,
             onSaveDocument = { viewModel.saveScannedDocument(context) },
             onCancel = viewModel::dismissScanFlow
+        )
+        return
+    }
+
+    // Sub-screen 1b: Live CameraX Document Scanner (with Accompanist Permissions)
+    if (showCameraView) {
+        CameraView(
+            onPhotoCaptured = { uri ->
+                showCameraView = false
+                viewModel.startScanFromUri(context, uri)
+            },
+            onPickFromGallery = {
+                showCameraView = false
+                photoPickerLauncher.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                )
+            },
+            onClose = { showCameraView = false }
         )
         return
     }
@@ -598,13 +567,18 @@ fun DocFolioAuthenticatedRoot(
     if (showScanSourceSheet) {
         ScanSourceBottomSheet(
             onDismiss = { showScanSourceSheet = false },
-            onTakePhoto = { requestCameraFlow() },
+            onTakePhoto = {
+                showScanSourceSheet = false
+                showCameraView = true
+            },
             onPickFromGallery = {
+                showScanSourceSheet = false
                 photoPickerLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
             },
             onPickSampleForm = { assetPath ->
+                showScanSourceSheet = false
                 viewModel.startScanFromBundledAsset(context, assetPath)
             }
         )

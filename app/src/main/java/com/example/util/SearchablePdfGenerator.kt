@@ -208,7 +208,8 @@ object SearchablePdfGenerator {
             textSize = 8f
             typeface = Typeface.SANS_SERIF
         }
-        val ocrLines = wrapText(doc.ocrFullText, invisibleOcrPaint, CONTENT_WIDTH)
+        val ocrText = buildSearchableTranscript(doc)
+        val ocrLines = wrapText(ocrText, invisibleOcrPaint, CONTENT_WIDTH)
         var textY = 80f
         for (line in ocrLines) {
             if (textY > PAGE_HEIGHT - 40f) break
@@ -354,7 +355,7 @@ object SearchablePdfGenerator {
             canvas.drawText("SEARCHABLE OCR FULL TRANSCRIPT", MARGIN, y, sectionPaint)
             y += 15f
 
-            val transcript = doc.ocrFullText.ifBlank { "(No OCR text extracted)" }
+            val transcript = buildSearchableTranscript(doc).ifBlank { "(No OCR text extracted)" }
             for (line in wrapText(transcript, monoPaint, CONTENT_WIDTH)) {
                 ensureSpace(13f)
                 canvas.drawText(line, MARGIN, y, monoPaint)
@@ -367,6 +368,32 @@ object SearchablePdfGenerator {
             }
         }
         return pageNum
+    }
+
+    /**
+     * Builds a comprehensive text transcript from either OCR full text or structured manual entry fields.
+     * Ensures every generated PDF is 100% searchable in PDF viewers even when manual entry is used.
+     */
+    fun buildSearchableTranscript(doc: ScannedDocument): String {
+        if (doc.ocrFullText.isNotBlank()) return doc.ocrFullText
+        val parts = mutableListOf<String>()
+        if (doc.title.isNotBlank()) parts.add("DOCUMENT: ${doc.title}")
+        if (doc.referenceNumber.isNotBlank()) parts.add("REFERENCE: ${doc.referenceNumber}")
+        if (doc.organization.isNotBlank()) parts.add("ORGANIZATION: ${doc.organization}")
+        if (doc.contractorOrParty.isNotBlank()) parts.add("PARTY: ${doc.contractorOrParty}")
+        if (doc.documentDateIso.isNotBlank()) {
+            parts.add("DOCUMENT DATE: ${doc.documentDateIso} (${DateSearchParser.formatSlashDate(doc.documentDateIso)})")
+        }
+        if (doc.filedDateIso.isNotBlank()) {
+            parts.add("FILED DATE: ${doc.filedDateIso} (${DateSearchParser.formatSlashDate(doc.filedDateIso)})")
+        }
+        parts.add("CATEGORY: ${doc.categoryEnum.displayName}")
+        if (doc.summary.isNotBlank()) parts.add("SUMMARY: ${doc.summary}")
+        if (doc.extractedFields.isNotEmpty()) {
+            parts.add("LINE ITEMS:")
+            doc.extractedFields.forEach { parts.add("• $it") }
+        }
+        return parts.joinToString("\n")
     }
 
     private fun drawDailyCoverPage(canvas: Canvas, dateIso: String, documents: List<ScannedDocument>) {

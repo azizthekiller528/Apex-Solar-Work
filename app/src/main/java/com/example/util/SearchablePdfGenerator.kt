@@ -232,127 +232,140 @@ object SearchablePdfGenerator {
 
     private fun appendOcrIndexPages(pdf: PdfDocument, doc: ScannedDocument, startPageNumber: Int): Int {
         var pageNum = startPageNumber
-        var page = pdf.startPage(PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum++).create())
-        var canvas = page.canvas
-        canvas.drawColor(Color.WHITE)
-
-        val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#0F2537")
-            textSize = 15f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        }
-        val sectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#C86D1F")
-            textSize = 10.5f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        }
-        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#4F5D6B")
-            textSize = 9.5f
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-        }
-        val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#141B22")
-            textSize = 9.8f
-            typeface = Typeface.SANS_SERIF
-        }
-        val monoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#141B22")
-            textSize = 8.8f
-            typeface = Typeface.MONOSPACE
-        }
-        val dividerPaint = Paint().apply {
-            color = Color.parseColor("#CBD2D9")
-            strokeWidth = 1f
-        }
-
-        var y = MARGIN + 8f
-
-        fun ensureSpace(neededHeight: Float) {
-            if (y + neededHeight > PAGE_HEIGHT - MARGIN) {
-                pdf.finishPage(page)
-                page = pdf.startPage(PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum++).create())
-                canvas = page.canvas
-                canvas.drawColor(Color.WHITE)
-                y = MARGIN + 10f
-            }
-        }
-
-        // Document title
-        for (line in wrapText(doc.title, headingPaint, CONTENT_WIDTH)) {
-            ensureSpace(20f)
-            canvas.drawText(line, MARGIN, y, headingPaint)
-            y += 19f
-        }
-        y += 4f
-        canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
-        y += 16f
-
-        // Metadata block
-        val metaPairs = listOf(
-            "Category" to doc.categoryEnum.displayName,
-            "Filed Date" to "${DateSearchParser.formatSlashDate(doc.filedDateIso)} (${DateSearchParser.formatFriendlyDate(doc.filedDateIso)})",
-            "Document Date" to if (doc.documentDateIso.isNotBlank()) {
-                "${DateSearchParser.formatSlashDate(doc.documentDateIso)} (${DateSearchParser.formatFriendlyDate(doc.documentDateIso)})"
-            } else {
-                "Not dated on form"
-            },
-            "Reference No." to doc.referenceNumber.ifBlank { "—" },
-            "Organization" to doc.organization.ifBlank { "—" },
-            "Contractor / Party" to doc.contractorOrParty.ifBlank { "—" }
+        var currentPage: PdfDocument.Page? = pdf.startPage(
+            PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum++).create()
         )
-        for ((k, v) in metaPairs) {
-            ensureSpace(16f)
-            canvas.drawText("$k:", MARGIN, y, labelPaint)
-            val wrappedVal = wrapText(v, bodyPaint, CONTENT_WIDTH - 115f)
-            wrappedVal.forEachIndexed { idx, line ->
-                if (idx > 0) ensureSpace(14f)
-                canvas.drawText(line, MARGIN + 115f, y, bodyPaint)
+        try {
+            var canvas = requireNotNull(currentPage).canvas
+            canvas.drawColor(Color.WHITE)
+
+            val headingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#0F2537")
+                textSize = 15f
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            }
+            val sectionPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#C86D1F")
+                textSize = 10.5f
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            }
+            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#4F5D6B")
+                textSize = 9.5f
+                typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            }
+            val bodyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#141B22")
+                textSize = 9.8f
+                typeface = Typeface.SANS_SERIF
+            }
+            val monoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#141B22")
+                textSize = 8.8f
+                typeface = Typeface.MONOSPACE
+            }
+            val dividerPaint = Paint().apply {
+                color = Color.parseColor("#CBD2D9")
+                strokeWidth = 1f
+            }
+
+            var y = MARGIN + 8f
+
+            fun ensureSpace(neededHeight: Float) {
+                if (y + neededHeight > PAGE_HEIGHT - MARGIN) {
+                    currentPage?.let { pageToFinish ->
+                        currentPage = null
+                        pdf.finishPage(pageToFinish)
+                    }
+                    val nextPage = pdf.startPage(
+                        PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum++).create()
+                    )
+                    currentPage = nextPage
+                    canvas = nextPage.canvas
+                    canvas.drawColor(Color.WHITE)
+                    y = MARGIN + 10f
+                }
+            }
+
+            // Document title
+            for (line in wrapText(doc.title, headingPaint, CONTENT_WIDTH)) {
+                ensureSpace(20f)
+                canvas.drawText(line, MARGIN, y, headingPaint)
+                y += 19f
+            }
+            y += 4f
+            canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
+            y += 16f
+
+            // Metadata block
+            val metaPairs = listOf(
+                "Category" to doc.categoryEnum.displayName,
+                "Filed Date" to "${DateSearchParser.formatSlashDate(doc.filedDateIso)} (${DateSearchParser.formatFriendlyDate(doc.filedDateIso)})",
+                "Document Date" to if (doc.documentDateIso.isNotBlank()) {
+                    "${DateSearchParser.formatSlashDate(doc.documentDateIso)} (${DateSearchParser.formatFriendlyDate(doc.documentDateIso)})"
+                } else {
+                    "Not dated on form"
+                },
+                "Reference No." to doc.referenceNumber.ifBlank { "—" },
+                "Organization" to doc.organization.ifBlank { "—" },
+                "Contractor / Party" to doc.contractorOrParty.ifBlank { "—" }
+            )
+            for ((k, v) in metaPairs) {
+                ensureSpace(16f)
+                canvas.drawText("$k:", MARGIN, y, labelPaint)
+                val wrappedVal = wrapText(v, bodyPaint, CONTENT_WIDTH - 115f)
+                wrappedVal.forEachIndexed { idx, line ->
+                    if (idx > 0) ensureSpace(14f)
+                    canvas.drawText(line, MARGIN + 115f, y, bodyPaint)
+                    y += 14f
+                }
+            }
+
+            if (doc.summary.isNotBlank()) {
+                y += 8f
+                ensureSpace(24f)
+                canvas.drawText("SUMMARY", MARGIN, y, sectionPaint)
                 y += 14f
-            }
-        }
-
-        if (doc.summary.isNotBlank()) {
-            y += 8f
-            ensureSpace(24f)
-            canvas.drawText("SUMMARY", MARGIN, y, sectionPaint)
-            y += 14f
-            for (line in wrapText(doc.summary, bodyPaint, CONTENT_WIDTH)) {
-                ensureSpace(14f)
-                canvas.drawText(line, MARGIN, y, bodyPaint)
-                y += 13.5f
-            }
-        }
-
-        if (doc.extractedFields.isNotEmpty()) {
-            y += 10f
-            ensureSpace(24f)
-            canvas.drawText("EXTRACTED FIELDS & LINE ITEMS", MARGIN, y, sectionPaint)
-            y += 14f
-            for (field in doc.extractedFields) {
-                for (line in wrapText("• $field", bodyPaint, CONTENT_WIDTH)) {
+                for (line in wrapText(doc.summary, bodyPaint, CONTENT_WIDTH)) {
                     ensureSpace(14f)
                     canvas.drawText(line, MARGIN, y, bodyPaint)
                     y += 13.5f
                 }
             }
+
+            if (doc.extractedFields.isNotEmpty()) {
+                y += 10f
+                ensureSpace(24f)
+                canvas.drawText("EXTRACTED FIELDS & LINE ITEMS", MARGIN, y, sectionPaint)
+                y += 14f
+                for (field in doc.extractedFields) {
+                    for (line in wrapText("• $field", bodyPaint, CONTENT_WIDTH)) {
+                        ensureSpace(14f)
+                        canvas.drawText(line, MARGIN, y, bodyPaint)
+                        y += 13.5f
+                    }
+                }
+            }
+
+            y += 12f
+            ensureSpace(28f)
+            canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
+            y += 16f
+            canvas.drawText("SEARCHABLE OCR FULL TRANSCRIPT", MARGIN, y, sectionPaint)
+            y += 15f
+
+            val transcript = doc.ocrFullText.ifBlank { "(No OCR text extracted)" }
+            for (line in wrapText(transcript, monoPaint, CONTENT_WIDTH)) {
+                ensureSpace(13f)
+                canvas.drawText(line, MARGIN, y, monoPaint)
+                y += 12.5f
+            }
+        } finally {
+            currentPage?.let { pageToFinish ->
+                currentPage = null
+                runCatching { pdf.finishPage(pageToFinish) }
+            }
         }
-
-        y += 12f
-        ensureSpace(28f)
-        canvas.drawLine(MARGIN, y, PAGE_WIDTH - MARGIN, y, dividerPaint)
-        y += 16f
-        canvas.drawText("SEARCHABLE OCR FULL TRANSCRIPT", MARGIN, y, sectionPaint)
-        y += 15f
-
-        val transcript = doc.ocrFullText.ifBlank { "(No OCR text extracted)" }
-        for (line in wrapText(transcript, monoPaint, CONTENT_WIDTH)) {
-            ensureSpace(13f)
-            canvas.drawText(line, MARGIN, y, monoPaint)
-            y += 12.5f
-        }
-
-        pdf.finishPage(page)
         return pageNum
     }
 

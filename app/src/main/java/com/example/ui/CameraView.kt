@@ -360,6 +360,10 @@ private fun CameraCaptureSurface(
                     cameraError = null
                 } catch (e: Exception) {
                     Log.e(CAMERA_VIEW_TAG, "Failed to bind CameraX use cases", e)
+                    boundCamera = null
+                    imageCaptureRef = null
+                    hasFlashUnit = false
+                    runCatching { activeProvider?.unbindAll() }
                     cameraError = e.localizedMessage ?: context.getString(R.string.camera_unavailable_body)
                 }
             },

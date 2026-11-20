@@ -108,6 +108,7 @@ fun DateLookupScreen(
         if (currentParsed?.primaryIso != selectedDateIso && currentParsed?.alternateIso != selectedDateIso) {
             jumpInput = DateSearchParser.formatSlashDate(selectedDateIso)
             jumpError = null
+            alternateIsoOffer = null
         }
     }
 

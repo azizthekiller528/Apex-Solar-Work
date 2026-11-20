@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [DocumentEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class DocFolioDatabase : RoomDatabase() {

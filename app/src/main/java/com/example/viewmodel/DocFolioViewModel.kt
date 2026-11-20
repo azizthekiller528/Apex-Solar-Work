@@ -106,6 +106,12 @@ data class VaultFilterState(
         get() = (parsedQueryDate != null || parsedQueryDateRange != null) &&
             explicitDateIso == null &&
             !hasExplicitRange
+
+    val hasAnyActiveFilter: Boolean
+        get() = query.isNotBlank() ||
+            selectedCategory != null ||
+            explicitDateIso != null ||
+            hasExplicitRange
 }
 
 sealed interface OneShotEvent {
@@ -218,7 +224,9 @@ class DocFolioViewModel(
     val filteredDocuments: StateFlow<List<ScannedDocument>> =
         combine(documentsState, _filterState, roomFilteredDocuments) { state, filter, roomMatches ->
             val docs = (state as? UiState.Success)?.data ?: return@combine emptyList()
-            if (roomMatches != null) {
+            if (!filter.hasAnyActiveFilter) {
+                docs
+            } else if (roomMatches != null) {
                 val matchedIds = roomMatches.mapTo(HashSet(roomMatches.size)) { it.id }
                 docs.filter { it.id in matchedIds }
             } else {
@@ -306,6 +314,16 @@ class DocFolioViewModel(
         _filterState.value = _filterState.value.copy(
             rangeStartDateIso = null,
             rangeEndDateIso = null
+        )
+    }
+
+    fun clearSearchAndDateFilters() {
+        _filterState.value = _filterState.value.copy(
+            query = "",
+            explicitDateIso = null,
+            rangeStartDateIso = null,
+            rangeEndDateIso = null,
+            useAlternateDateFormat = false
         )
     }
 

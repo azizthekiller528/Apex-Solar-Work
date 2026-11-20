@@ -981,15 +981,14 @@ internal fun buildHighlightedText(
     highlightFg: Color
 ): Pair<AnnotatedString, Int> {
     if (needle.isBlank()) return AnnotatedString(source) to 0
-    val lowerSource = source.lowercase()
-    val lowerNeedle = needle.lowercase()
     var count = 0
     val annotated = buildAnnotatedString {
         append(source)
         var startIdx = 0
-        while (startIdx < lowerSource.length) {
-            val found = lowerSource.indexOf(lowerNeedle, startIdx)
+        while (startIdx < source.length) {
+            val found = source.indexOf(needle, startIndex = startIdx, ignoreCase = true)
             if (found < 0) break
+            val end = (found + needle.length).coerceAtMost(source.length)
             addStyle(
                 style = SpanStyle(
                     background = highlightBg,
@@ -997,10 +996,10 @@ internal fun buildHighlightedText(
                     fontWeight = FontWeight.Bold
                 ),
                 start = found,
-                end = found + lowerNeedle.length
+                end = end
             )
             count++
-            startIdx = found + lowerNeedle.length
+            startIdx = end
         }
     }
     return annotated to count

@@ -259,6 +259,7 @@ class DocFolioCoreUnitTest {
                 organization = "Kalpataru",
                 contractorOrParty = "PV Power Technologies",
                 summary = "Earthing and mounting check",
+                extractedFields = listOf("Approved By: Rajesh Sharma", "Capacity: 5kW"),
                 localImageFileName = "feb.jpg",
                 localPdfFileName = "feb_searchable.pdf",
                 ocrFullText = "PV POWER TECHNOLOGIES Earthing Strip"
@@ -287,6 +288,13 @@ class DocFolioCoreUnitTest {
             // 2. Literal '%' wildcard escaping matches only doc containing "100%"
             val byPercent = cache.queryDocumentsByKeywordOrDateRange(userId = "uid_1", keyword = "100%").first()
             assertEquals(listOf("doc_jan"), byPercent.map { it.id })
+
+            // 2b. Custom extractedFields content is indexed and searchable in Room
+            val byExtractedField = cache.queryDocumentsByKeywordOrDateRange(
+                userId = "uid_1",
+                keyword = "Rajesh Sharma"
+            ).first()
+            assertEquals(listOf("doc_feb"), byExtractedField.map { it.id })
 
             // 3. Inclusive date range (auto-orders inverted start > end)
             val janToFeb = cache.queryDocumentsByKeywordOrDateRange(

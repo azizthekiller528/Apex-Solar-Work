@@ -53,6 +53,7 @@ interface DocumentDao {
               OR organization LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
               OR contractorOrParty LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
               OR summary LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR extractedFieldsText LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
               OR ocrContent LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
               OR filedDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
               OR documentDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE

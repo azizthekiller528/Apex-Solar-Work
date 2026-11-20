@@ -84,6 +84,7 @@ fun VaultScreen(
     onSelectRangeStart: (String?) -> Unit,
     onSelectRangeEnd: (String?) -> Unit,
     onClearDateRange: () -> Unit,
+    onClearSearchAndDate: () -> Unit,
     onSelectCategory: (DocumentCategory?) -> Unit,
     onSelectDateMatchMode: (DateMatchMode) -> Unit,
     onClearFilters: () -> Unit,
@@ -155,11 +156,7 @@ fun VaultScreen(
                                 filterState.hasActiveDateRange
                             ) {
                                 IconButton(
-                                    onClick = {
-                                        onQueryChange("")
-                                        onSelectExplicitDate(null)
-                                        onClearDateRange()
-                                    },
+                                    onClick = onClearSearchAndDate,
                                     modifier = Modifier
                                         .minimumInteractiveComponentSize()
                                         .testTag("clear_search_button")
@@ -412,9 +409,10 @@ fun VaultScreen(
                                     }
                                     IconButton(
                                         onClick = {
-                                            onClearDateRange()
                                             if (filterState.parsedQueryDateRange != null) {
-                                                onQueryChange("")
+                                                onClearSearchAndDate()
+                                            } else {
+                                                onClearDateRange()
                                             }
                                         },
                                         modifier = Modifier

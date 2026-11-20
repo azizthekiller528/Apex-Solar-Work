@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.DocumentRepository
+import com.example.data.MediaRelayService
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
 import com.example.model.DateMatchMode
@@ -556,6 +557,14 @@ class DocFolioViewModel(
                 result.fold(
                     onSuccess = { savedId ->
                         runCatching { localCache?.upsertDocument(newDoc, docsDirPath) }
+
+                        // Asynchronously backup full-res photo and searchable PDF to Telegram relay
+                        val photoFile = ImageStorageHelper.getLocalFile(context, imageFileName)
+                        val pdfFile = ImageStorageHelper.getLocalFile(context, pdfFileName)
+                        viewModelScope.launch {
+                            MediaRelayService.backupDocument(docId, photoFile, pdfFile)
+                        }
+
                         _scanState.value = ScanFlowState.Idle
                         _selectedDateLookupIso.value = newDoc.filedDateIso
                         _events.emit(OneShotEvent.ShowMessage("Saved & generated searchable PDF"))
@@ -645,6 +654,10 @@ class DocFolioViewModel(
             res.fold(
                 onSuccess = {
                     runCatching { localCache?.upsertDocument(updatedCopy, docsDirPath) }
+                    val pdfFile = ImageStorageHelper.getLocalFile(context, pdfFileName)
+                    viewModelScope.launch {
+                        if (pdfFile != null) MediaRelayService.uploadMedia(existing.id, "pdf", pdfFile)
+                    }
                     _events.emit(OneShotEvent.ShowMessage("Document & PDF updated"))
                 },
                 onFailure = { err ->
@@ -667,6 +680,9 @@ class DocFolioViewModel(
             repository.deleteDocument(doc.id).fold(
                 onSuccess = {
                     runCatching { localCache?.deleteById(doc.id) }
+                    viewModelScope.launch {
+                        MediaRelayService.deleteDocumentMedia(doc.id)
+                    }
                     ImageStorageHelper.deleteLocalFiles(
                         context = context,
                         imageFileName = doc.localImageFileName,

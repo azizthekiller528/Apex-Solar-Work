@@ -69,7 +69,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.R
 import com.example.data.DocumentRepository
-import com.example.data.GeminiOcrService
 import com.example.data.local.DocFolioDatabase
 import com.example.data.local.LocalDocumentCacheRepository
 import com.example.firebase.signOut
@@ -121,7 +120,6 @@ fun DocFolioAuthenticatedRoot(
                 val localDb = DocFolioDatabase.getInstance(app)
                 DocFolioViewModel(
                     repository = DocumentRepository(db),
-                    ocrService = GeminiOcrService(),
                     currentUserId = currentUser.uid,
                     localCache = LocalDocumentCacheRepository(localDb.documentDao()),
                     docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath
@@ -244,8 +242,6 @@ fun DocFolioAuthenticatedRoot(
         ScanReviewScreen(
             scanState = scanState,
             onUpdateDraft = viewModel::updateScanDraft,
-            onRetryOcr = viewModel::retryOcrOnLastBitmap,
-            onProceedManual = viewModel::proceedManualFromError,
             onSaveDocument = { viewModel.saveScannedDocument(context) },
             onCancel = viewModel::dismissScanFlow
         )

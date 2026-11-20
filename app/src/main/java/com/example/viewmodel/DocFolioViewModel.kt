@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.DocumentRepository
-import com.example.data.GeminiOcrService
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
 import com.example.model.DateMatchMode
@@ -63,7 +62,6 @@ data class ScanDraft(
 
 sealed interface ScanFlowState {
     data object Idle : ScanFlowState
-    data class ProcessingOcr(val previewBitmap: Bitmap) : ScanFlowState
     data class Review(val draft: ScanDraft, val isSaving: Boolean = false) : ScanFlowState
     data class Error(val message: String, val previewBitmap: Bitmap? = null) : ScanFlowState
 }
@@ -142,7 +140,6 @@ sealed interface FirestoreSearchState {
 
 class DocFolioViewModel(
     private val repository: DocumentRepository,
-    private val ocrService: GeminiOcrService,
     private val currentUserId: String,
     private val localCache: LocalDocumentCacheRepository? = null,
     private val docsDirPath: String = ""
@@ -444,7 +441,7 @@ class DocFolioViewModel(
         viewModelScope.launch {
             try {
                 val bitmap = ImageStorageHelper.loadOrientedBitmapFromUri(context, uri)
-                runOcrOnBitmap(bitmap)
+                openManualReview(bitmap)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -458,7 +455,7 @@ class DocFolioViewModel(
         viewModelScope.launch {
             try {
                 val bitmap = ImageStorageHelper.loadOrientedBitmapFromAsset(context, assetPath)
-                runOcrOnBitmap(bitmap)
+                openManualReview(bitmap)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -468,17 +465,15 @@ class DocFolioViewModel(
         }
     }
 
-    fun retryOcrOnLastBitmap() {
-        val current = _scanState.value
-        val bitmap = (current as? ScanFlowState.Error)?.previewBitmap ?: return
-        viewModelScope.launch {
-            runOcrOnBitmap(bitmap)
-        }
-    }
-
-    fun proceedManualFromError() {
-        val current = _scanState.value
-        val bitmap = (current as? ScanFlowState.Error)?.previewBitmap ?: return
+    /**
+     * Opens the review screen directly with an empty draft.
+     *
+     * Auto-OCR is intentionally disabled: on a phone uplink the Gemini request regularly
+     * exceeded its timeout, so capturing a document now skips straight to manual entry.
+     * The extraction path is preserved in [com.example.data.GeminiOcrService] and can be
+     * re-wired here if a reliable OCR connection is available later.
+     */
+    private fun openManualReview(bitmap: Bitmap) {
         _scanState.value = ScanFlowState.Review(
             draft = ScanDraft(
                 bitmap = bitmap,
@@ -494,35 +489,6 @@ class DocFolioViewModel(
                 ocrFullText = ""
             )
         )
-    }
-
-    private suspend fun runOcrOnBitmap(bitmap: Bitmap) {
-        _scanState.value = ScanFlowState.ProcessingOcr(bitmap)
-        try {
-            val result = ocrService.analyzeDocumentPhoto(bitmap)
-            _scanState.value = ScanFlowState.Review(
-                draft = ScanDraft(
-                    bitmap = bitmap,
-                    title = result.title,
-                    category = result.category,
-                    documentDateIso = result.documentDateIso,
-                    filedDateIso = DateSearchParser.todayIso(),
-                    referenceNumber = result.referenceNumber,
-                    organization = result.organization,
-                    contractorOrParty = result.contractorOrParty,
-                    summary = result.summary,
-                    extractedFieldsText = result.extractedFields.joinToString("\n"),
-                    ocrFullText = result.ocrFullText
-                )
-            )
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            _scanState.value = ScanFlowState.Error(
-                message = e.localizedMessage ?: "AI OCR analysis failed.",
-                previewBitmap = bitmap
-            )
-        }
     }
 
     fun updateScanDraft(transform: (ScanDraft) -> ScanDraft) {

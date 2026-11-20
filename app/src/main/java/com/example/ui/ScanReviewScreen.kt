@@ -86,8 +86,6 @@ import com.example.viewmodel.ScanFlowState
 fun ScanReviewScreen(
     scanState: ScanFlowState,
     onUpdateDraft: ((ScanDraft) -> ScanDraft) -> Unit,
-    onRetryOcr: () -> Unit,
-    onProceedManual: () -> Unit,
     onSaveDocument: () -> Unit,
     onCancel: () -> Unit
 ) {
@@ -102,10 +100,9 @@ fun ScanReviewScreen(
                 title = {
                     Text(
                         text = when (scanState) {
-                            is ScanFlowState.ProcessingOcr -> "Scanning with AI OCR"
-                            is ScanFlowState.Review -> "Verify OCR & Save PDF"
+                            is ScanFlowState.Review -> "Verify Details & Save PDF"
                             is ScanFlowState.Error -> "Scan Interrupted"
-                            ScanFlowState.Idle -> "Scan Document"
+                            else -> "Scan Document"
                         },
                         style = MaterialTheme.typography.titleLarge
                     )
@@ -138,15 +135,9 @@ fun ScanReviewScreen(
             contentAlignment = Alignment.TopCenter
         ) {
             when (scanState) {
-                is ScanFlowState.ProcessingOcr -> {
-                    ProcessingOcrView(bitmap = scanState.previewBitmap)
-                }
-
                 is ScanFlowState.Error -> {
                     ScanErrorView(
                         state = scanState,
-                        onRetry = onRetryOcr,
-                        onProceedManual = onProceedManual,
                         onCancel = onCancel
                     )
                 }
@@ -167,105 +158,8 @@ fun ScanReviewScreen(
 }
 
 @Composable
-private fun ProcessingOcrView(bitmap: android.graphics.Bitmap) {
-    val transition = rememberInfiniteTransition(label = "ocr_laser")
-    val laserProgress by transition.animateFloat(
-        initialValue = 0.08f,
-        targetValue = 0.92f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1900, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "laser_y"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .widthIn(max = 560.dp)
-            .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .clip(RoundedCornerShape(18.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Document currently being scanned",
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
-            )
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val y = size.height * laserProgress
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            SafetyAmber.copy(alpha = 0.28f),
-                            SafetyAmber.copy(alpha = 0.85f),
-                            SafetyAmber.copy(alpha = 0.28f),
-                            Color.Transparent
-                        ),
-                        startY = (y - 38f).coerceAtLeast(0f),
-                        endY = (y + 38f).coerceAtMost(size.height)
-                    ),
-                    topLeft = Offset(0f, (y - 38f).coerceAtLeast(0f)),
-                    size = androidx.compose.ui.geometry.Size(size.width, 76f)
-                )
-                drawLine(
-                    color = SafetyAmber,
-                    start = Offset(0f, y),
-                    end = Offset(size.width, y),
-                    strokeWidth = 4f
-                )
-            }
-        }
-
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            shape = RoundedCornerShape(18.dp),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(28.dp),
-                    color = SafetyAmber,
-                    strokeWidth = 3.dp
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Reading handwriting, tables & dates…",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Extracting slip numbers, contractor details, quantities, and full searchable OCR text.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ScanErrorView(
     state: ScanFlowState.Error,
-    onRetry: () -> Unit,
-    onProceedManual: () -> Unit,
     onCancel: () -> Unit
 ) {
     Column(
@@ -309,7 +203,7 @@ private fun ScanErrorView(
                         tint = MaterialTheme.colorScheme.onErrorContainer
                     )
                     Text(
-                        text = "AI OCR could not complete",
+                        text = "Could not open this scan",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -322,36 +216,17 @@ private fun ScanErrorView(
             }
         }
 
-        if (state.previewBitmap != null) {
-            Button(
-                onClick = onRetry,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("retry_ocr_button")
-            ) {
-                Icon(imageVector = Icons.Default.Refresh, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Retry AI OCR")
-            }
-
-            OutlinedButton(
-                onClick = onProceedManual,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .testTag("manual_entry_button")
-            ) {
-                Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Enter Date & Details Manually")
-            }
-        } else {
-            OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
-                Text("Go Back")
-            }
+        OutlinedButton(
+            onClick = onCancel,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .testTag("manual_entry_button")
+        ) {
+            Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Go Back to Vault")
         }
     }
 }

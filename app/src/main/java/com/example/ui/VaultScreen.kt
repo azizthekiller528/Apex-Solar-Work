@@ -81,6 +81,9 @@ fun VaultScreen(
     onQueryChange: (String) -> Unit,
     onToggleAlternateDate: () -> Unit,
     onSelectExplicitDate: (String?) -> Unit,
+    onSelectRangeStart: (String?) -> Unit,
+    onSelectRangeEnd: (String?) -> Unit,
+    onClearDateRange: () -> Unit,
     onSelectCategory: (DocumentCategory?) -> Unit,
     onSelectDateMatchMode: (DateMatchMode) -> Unit,
     onClearFilters: () -> Unit,
@@ -93,6 +96,8 @@ fun VaultScreen(
 ) {
     val focusManager = LocalFocusManager.current
     var showDatePicker by remember { mutableStateOf(false) }
+    var showRangeStartPicker by remember { mutableStateOf(false) }
+    var showRangeEndPicker by remember { mutableStateOf(false) }
 
     val allDocs = (documentsState as? UiState.Success)?.data ?: emptyList()
     val baseDocs = remember(allDocs, starredOnly) {
@@ -104,6 +109,7 @@ fun VaultScreen(
 
     val hasAnyFilter = filterState.query.isNotBlank() ||
         filterState.explicitDateIso != null ||
+        filterState.hasActiveDateRange ||
         filterState.selectedCategory != null
 
     val todayIso = remember { DateSearchParser.todayIso() }
@@ -144,11 +150,15 @@ fun VaultScreen(
                     },
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (filterState.query.isNotBlank() || filterState.explicitDateIso != null) {
+                            if (filterState.query.isNotBlank() ||
+                                filterState.explicitDateIso != null ||
+                                filterState.hasActiveDateRange
+                            ) {
                                 IconButton(
                                     onClick = {
                                         onQueryChange("")
                                         onSelectExplicitDate(null)
+                                        onClearDateRange()
                                     },
                                     modifier = Modifier
                                         .minimumInteractiveComponentSize()
@@ -169,7 +179,7 @@ fun VaultScreen(
                                 Icon(
                                     imageVector = Icons.Default.CalendarMonth,
                                     contentDescription = "Pick exact date to filter",
-                                    tint = if (filterState.activeDateIso != null) {
+                                    tint = if (filterState.activeDateIso != null || filterState.hasActiveDateRange) {
                                         SafetyAmber
                                     } else {
                                         MaterialTheme.colorScheme.onSurfaceVariant
@@ -194,10 +204,75 @@ fun VaultScreen(
                 )
             }
 
-            // Smart Date Detection Banner
+            // Quick Date Range Chips (From / To)
+            item(key = "date_range_bar") {
+                val (effectiveStart, effectiveEnd) = filterState.effectiveDateRange
+                val startDisplay = if (filterState.hasActiveDateRange && effectiveStart != null) {
+                    "From: ${DateSearchParser.formatSlashDate(effectiveStart)}"
+                } else {
+                    "From date"
+                }
+                val endDisplay = if (filterState.hasActiveDateRange && effectiveEnd != null) {
+                    "To: ${DateSearchParser.formatSlashDate(effectiveEnd)}"
+                } else {
+                    "To date"
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    FilterChip(
+                        selected = filterState.hasActiveDateRange && effectiveStart != null,
+                        onClick = { showRangeStartPicker = true },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text(startDisplay, style = MaterialTheme.typography.labelMedium) },
+                        modifier = Modifier.testTag("vault_range_start_chip")
+                    )
+                    FilterChip(
+                        selected = filterState.hasActiveDateRange && effectiveEnd != null,
+                        onClick = { showRangeEndPicker = true },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.CalendarMonth,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        },
+                        label = { Text(endDisplay, style = MaterialTheme.typography.labelMedium) },
+                        modifier = Modifier.testTag("vault_range_end_chip")
+                    )
+                    if (filterState.hasExplicitRange) {
+                        AssistChip(
+                            onClick = onClearDateRange,
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "Clear date range",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            label = { Text("Clear range", style = MaterialTheme.typography.labelMedium) },
+                            modifier = Modifier.testTag("vault_clear_range_chip")
+                        )
+                    }
+                }
+            }
+
+            // Smart Date or Date-Range Detection Banner
             item(key = "active_date_banner") {
                 val activeDateIso = filterState.activeDateIso
-                AnimatedVisibility(visible = activeDateIso != null) {
+                val (rangeStart, rangeEnd) = filterState.effectiveDateRange
+                val showBanner = activeDateIso != null || filterState.hasActiveDateRange
+                AnimatedVisibility(visible = showBanner) {
                     if (activeDateIso != null) {
                         val parsed = filterState.parsedQueryDate
                         val alternateIso = if (filterState.explicitDateIso == null) {
@@ -297,6 +372,74 @@ fun VaultScreen(
                                                 )
                                             },
                                             modifier = Modifier.testTag("toggle_date_format_chip")
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (filterState.hasActiveDateRange) {
+                        val rangeLabel = buildString {
+                            append(rangeStart?.let { DateSearchParser.formatSlashDate(it) } ?: "Any")
+                            append("  →  ")
+                            append(rangeEnd?.let { DateSearchParser.formatSlashDate(it) } ?: "Any")
+                        }
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(14.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "DATE RANGE FILTER ACTIVE",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            text = rangeLabel,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            onClearDateRange()
+                                            if (filterState.parsedQueryDateRange != null) {
+                                                onQueryChange("")
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("banner_clear_range_button")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Clear,
+                                            contentDescription = "Clear date range filter"
+                                        )
+                                    }
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    DateMatchMode.entries.forEach { mode ->
+                                        FilterChip(
+                                            selected = filterState.dateMatchMode == mode,
+                                            onClick = { onSelectDateMatchMode(mode) },
+                                            label = { Text(mode.label, style = MaterialTheme.typography.labelMedium) }
                                         )
                                     }
                                 }
@@ -472,6 +615,28 @@ fun VaultScreen(
             onDismiss = { showDatePicker = false },
             onDateSelected = { iso ->
                 onSelectExplicitDate(iso)
+            }
+        )
+    }
+
+    if (showRangeStartPicker) {
+        DocDatePickerDialog(
+            initialIsoDate = filterState.rangeStartDateIso ?: filterState.effectiveDateRange.first ?: todayIso,
+            title = "Select Start Date (From)",
+            onDismiss = { showRangeStartPicker = false },
+            onDateSelected = { iso ->
+                onSelectRangeStart(iso)
+            }
+        )
+    }
+
+    if (showRangeEndPicker) {
+        DocDatePickerDialog(
+            initialIsoDate = filterState.rangeEndDateIso ?: filterState.effectiveDateRange.second ?: todayIso,
+            title = "Select End Date (To)",
+            onDismiss = { showRangeEndPicker = false },
+            onDateSelected = { iso ->
+                onSelectRangeEnd(iso)
             }
         )
     }

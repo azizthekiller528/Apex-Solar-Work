@@ -8,8 +8,8 @@ import java.io.File
 
 /**
  * Local Room SQLite cache entity storing scanned document metadata
- * (filename, dates, local file paths, and searchable OCR content)
- * mirrored from the user's Cloud Firestore vault for fast offline lookups.
+ * (filename, dates, reference/organization/party fields, local file paths, and searchable OCR content)
+ * mirrored from the user's Cloud Firestore vault for fast reactive keyword & date-range queries.
  */
 @Entity(
     tableName = "documents",
@@ -28,6 +28,10 @@ data class DocumentEntity(
     val category: String,
     val documentDateIso: String,
     val filedDateIso: String,
+    val referenceNumber: String = "",
+    val organization: String = "",
+    val contractorOrParty: String = "",
+    val summary: String = "",
     val localImagePath: String,
     val localPdfPath: String,
     val ocrContent: String,
@@ -57,6 +61,10 @@ fun ScannedDocument.toDocumentEntity(docsDirPath: String): DocumentEntity {
         category = category,
         documentDateIso = documentDateIso,
         filedDateIso = filedDateIso,
+        referenceNumber = referenceNumber,
+        organization = organization,
+        contractorOrParty = contractorOrParty,
+        summary = summary,
         localImagePath = resolvedImagePath,
         localPdfPath = resolvedPdfPath,
         ocrContent = ocrFullText,

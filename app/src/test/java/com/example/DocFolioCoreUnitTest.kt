@@ -224,4 +224,110 @@ class DocFolioCoreUnitTest {
             db.close()
         }
     }
+
+    @Test
+    fun roomDao_queryByKeywordOrDateRange_handlesDynamicTypingRangesAndWildcards() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, DocFolioDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        try {
+            val cache = LocalDocumentCacheRepository(db.documentDao())
+            val janSlip = ScannedDocument(
+                id = "doc_jan",
+                userId = "uid_1",
+                title = "Material Requisition Slip #6717",
+                category = DocumentCategory.MATERIAL_SLIP.name,
+                documentDateIso = "2026-01-10",
+                filedDateIso = "2026-01-12",
+                referenceNumber = "6717",
+                organization = "Kalpataru Projects",
+                contractorOrParty = "Apex Solar",
+                summary = "100% issued Nut Bolt 8mm",
+                localImageFileName = "jan.jpg",
+                localPdfFileName = "jan_searchable.pdf",
+                ocrFullText = "Nut Bolt 8mm 100% Returnable"
+            )
+            val febProtocol = ScannedDocument(
+                id = "doc_feb",
+                userId = "uid_1",
+                title = "Solar System Inspection Protocol",
+                category = DocumentCategory.INSPECTION_PROTOCOL.name,
+                documentDateIso = "",
+                filedDateIso = "2026-02-20",
+                referenceNumber = "SSP-09",
+                organization = "Kalpataru",
+                contractorOrParty = "PV Power Technologies",
+                summary = "Earthing and mounting check",
+                localImageFileName = "feb.jpg",
+                localPdfFileName = "feb_searchable.pdf",
+                ocrFullText = "PV POWER TECHNOLOGIES Earthing Strip"
+            )
+            val marChallan = ScannedDocument(
+                id = "doc_mar",
+                userId = "uid_1",
+                title = "Delivery Challan #88",
+                category = DocumentCategory.DELIVERY_CHALLAN.name,
+                documentDateIso = "2026-03-05",
+                filedDateIso = "2026-03-06",
+                referenceNumber = "DC-88",
+                organization = "Eastman",
+                contractorOrParty = "Site Store",
+                summary = "Inverter battery dispatch",
+                localImageFileName = "mar.jpg",
+                localPdfFileName = "mar_searchable.pdf",
+                ocrFullText = "Battery Inverter Dispatch"
+            )
+            cache.syncFromCloud("uid_1", listOf(janSlip, febProtocol, marChallan), "/docs")
+
+            // 1. Dynamic case-insensitive keyword search across referenceNumber / party / OCR
+            val byRef = cache.queryDocumentsByKeywordOrDateRange(userId = "uid_1", keyword = "6717").first()
+            assertEquals(listOf("doc_jan"), byRef.map { it.id })
+
+            // 2. Literal '%' wildcard escaping matches only doc containing "100%"
+            val byPercent = cache.queryDocumentsByKeywordOrDateRange(userId = "uid_1", keyword = "100%").first()
+            assertEquals(listOf("doc_jan"), byPercent.map { it.id })
+
+            // 3. Inclusive date range (auto-orders inverted start > end)
+            val janToFeb = cache.queryDocumentsByKeywordOrDateRange(
+                userId = "uid_1",
+                startDateIso = "2026-02-28",
+                endDateIso = "2026-01-01"
+            ).first()
+            assertEquals(setOf("doc_jan", "doc_feb"), janToFeb.map { it.id }.toSet())
+
+            // 4. DOCUMENT_ONLY must NOT match blank documentDateIso when startDateIso is null
+            val docOnlyUpToFeb = cache.queryDocumentsByKeywordOrDateRange(
+                userId = "uid_1",
+                startDateIso = null,
+                endDateIso = "2026-02-28",
+                dateMatchMode = DateMatchMode.DOCUMENT_ONLY
+            ).first()
+            assertEquals(listOf("doc_jan"), docOnlyUpToFeb.map { it.id })
+
+            // 5. Combined keyword + date range + category
+            val combined = cache.queryDocumentsByKeywordOrDateRange(
+                userId = "uid_1",
+                keyword = "kalpataru",
+                startDateIso = "2026-02-01",
+                endDateIso = "2026-03-01",
+                category = DocumentCategory.INSPECTION_PROTOCOL.name
+            ).first()
+            assertEquals(listOf("doc_feb"), combined.map { it.id })
+
+            // 6. Typed date range parsing in DateSearchParser
+            val parsedRange = DateSearchParser.parseDateRangeQuery("24/02/2026 - 12/1/2026")
+            assertNotNull(parsedRange)
+            assertEquals("2026-01-12", parsedRange!!.startIso)
+            assertEquals("2026-02-24", parsedRange.endIso)
+
+            val typedRangeFilter = DocFolioViewModel.applyVaultFilter(
+                listOf(janSlip, febProtocol, marChallan),
+                VaultFilterState(query = "12/1/2026 to 25/02/2026")
+            )
+            assertEquals(setOf("doc_jan", "doc_feb"), typedRangeFilter.map { it.id }.toSet())
+        } finally {
+            db.close()
+        }
+    }
 }

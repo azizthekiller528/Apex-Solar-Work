@@ -17,9 +17,11 @@ import com.example.model.UiState
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
 import com.example.util.ParsedDateQuery
+import com.example.util.ParsedDateRange
 import com.example.util.SearchablePdfGenerator
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,6 +32,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
@@ -61,20 +64,48 @@ data class VaultFilterState(
     val query: String = "",
     val selectedCategory: DocumentCategory? = null,
     val explicitDateIso: String? = null,
+    val rangeStartDateIso: String? = null,
+    val rangeEndDateIso: String? = null,
     val useAlternateDateFormat: Boolean = false,
     val dateMatchMode: DateMatchMode = DateMatchMode.EITHER
 ) {
     val parsedQueryDate: ParsedDateQuery?
         get() = DateSearchParser.parseDateQuery(query)
 
+    val parsedQueryDateRange: ParsedDateRange?
+        get() = DateSearchParser.parseDateRangeQuery(query)
+
+    val hasExplicitRange: Boolean
+        get() = rangeStartDateIso != null || rangeEndDateIso != null
+
     val activeDateIso: String?
-        get() = explicitDateIso ?: parsedQueryDate?.let { parsed ->
-            if (useAlternateDateFormat && parsed.alternateIso != null) {
-                parsed.alternateIso
-            } else {
-                parsed.primaryIso
+        get() = if (hasExplicitRange || parsedQueryDateRange != null) {
+            null
+        } else {
+            explicitDateIso ?: parsedQueryDate?.let { parsed ->
+                if (useAlternateDateFormat && parsed.alternateIso != null) {
+                    parsed.alternateIso
+                } else {
+                    parsed.primaryIso
+                }
             }
         }
+
+    val effectiveDateRange: Pair<String?, String?>
+        get() = when {
+            hasExplicitRange -> rangeStartDateIso to rangeEndDateIso
+            parsedQueryDateRange != null -> parsedQueryDateRange!!.let { it.startIso to it.endIso }
+            activeDateIso != null -> activeDateIso to activeDateIso
+            else -> null to null
+        }
+
+    val hasActiveDateRange: Boolean
+        get() = hasExplicitRange || parsedQueryDateRange != null
+
+    val isPureDateOrRangeQuery: Boolean
+        get() = (parsedQueryDate != null || parsedQueryDateRange != null) &&
+            explicitDateIso == null &&
+            !hasExplicitRange
 }
 
 sealed interface OneShotEvent {
@@ -153,10 +184,46 @@ class DocFolioViewModel(
     private val _events = MutableSharedFlow<OneShotEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<OneShotEvent> = _events.asSharedFlow()
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val roomFilteredDocuments: StateFlow<List<DocumentEntity>?> =
+        if (localCache == null) {
+            MutableStateFlow(null)
+        } else {
+            _filterState
+                .flatMapLatest { filter ->
+                    val keyword = if (filter.isPureDateOrRangeQuery) "" else filter.query.trim()
+                    val (startIso, endIso) = filter.effectiveDateRange
+                    localCache.queryDocumentsByKeywordOrDateRange(
+                        userId = currentUserId,
+                        keyword = keyword,
+                        startDateIso = startIso,
+                        endDateIso = endIso,
+                        category = filter.selectedCategory?.name,
+                        dateMatchMode = filter.dateMatchMode
+                    )
+                }
+                .map<List<DocumentEntity>, List<DocumentEntity>?> { it }
+                .catch { error ->
+                    if (error is CancellationException) throw error
+                    Log.w(TAG, "Local Room reactive query warning: ${error.message}")
+                    emit(null)
+                }
+                .stateIn(
+                    scope = viewModelScope,
+                    started = SharingStarted.WhileSubscribed(5000L),
+                    initialValue = null
+                )
+        }
+
     val filteredDocuments: StateFlow<List<ScannedDocument>> =
-        combine(documentsState, _filterState) { state, filter ->
+        combine(documentsState, _filterState, roomFilteredDocuments) { state, filter, roomMatches ->
             val docs = (state as? UiState.Success)?.data ?: return@combine emptyList()
-            applyVaultFilter(docs, filter)
+            if (roomMatches != null) {
+                val matchedIds = roomMatches.mapTo(HashSet(roomMatches.size)) { it.id }
+                docs.filter { it.id in matchedIds }
+            } else {
+                applyVaultFilter(docs, filter)
+            }
         }.stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000L),
@@ -166,9 +233,13 @@ class DocFolioViewModel(
     fun updateSearchQuery(newQuery: String) {
         val current = _filterState.value
         val typedDate = DateSearchParser.parseDateQuery(newQuery)
+        val typedRange = DateSearchParser.parseDateRangeQuery(newQuery)
+        val clearExplicitDates = typedDate != null || typedRange != null
         _filterState.value = current.copy(
             query = newQuery,
-            explicitDateIso = if (typedDate != null) null else current.explicitDateIso,
+            explicitDateIso = if (clearExplicitDates) null else current.explicitDateIso,
+            rangeStartDateIso = if (clearExplicitDates) null else current.rangeStartDateIso,
+            rangeEndDateIso = if (clearExplicitDates) null else current.rangeEndDateIso,
             useAlternateDateFormat = false
         )
     }
@@ -181,11 +252,60 @@ class DocFolioViewModel(
 
     fun setExplicitDateFilter(isoDate: String?) {
         val current = _filterState.value
-        val queryIsDate = DateSearchParser.parseDateQuery(current.query) != null
+        val queryIsDateOrRange = DateSearchParser.parseDateQuery(current.query) != null ||
+            DateSearchParser.parseDateRangeQuery(current.query) != null
         _filterState.value = current.copy(
             explicitDateIso = isoDate,
-            query = if (isoDate != null && queryIsDate) "" else current.query,
+            rangeStartDateIso = if (isoDate != null) null else current.rangeStartDateIso,
+            rangeEndDateIso = if (isoDate != null) null else current.rangeEndDateIso,
+            query = if (isoDate != null && queryIsDateOrRange) "" else current.query,
             useAlternateDateFormat = false
+        )
+    }
+
+    fun setDateRangeStart(isoDate: String?) {
+        val current = _filterState.value
+        setDateRange(
+            startIso = isoDate,
+            endIso = current.rangeEndDateIso ?: current.parsedQueryDateRange?.endIso
+        )
+    }
+
+    fun setDateRangeEnd(isoDate: String?) {
+        val current = _filterState.value
+        setDateRange(
+            startIso = current.rangeStartDateIso ?: current.parsedQueryDateRange?.startIso,
+            endIso = isoDate
+        )
+    }
+
+    fun setDateRange(startIso: String?, endIso: String?) {
+        val current = _filterState.value
+        val validStart = startIso?.takeIf { DateSearchParser.isValidIsoDate(it) }
+        val validEnd = endIso?.takeIf { DateSearchParser.isValidIsoDate(it) }
+        val (orderedStart, orderedEnd) = if (
+            validStart != null && validEnd != null && validStart > validEnd
+        ) {
+            validEnd to validStart
+        } else {
+            validStart to validEnd
+        }
+        val queryIsDateOrRange = DateSearchParser.parseDateQuery(current.query) != null ||
+            DateSearchParser.parseDateRangeQuery(current.query) != null
+        val settingRange = orderedStart != null || orderedEnd != null
+        _filterState.value = current.copy(
+            explicitDateIso = if (settingRange) null else current.explicitDateIso,
+            rangeStartDateIso = orderedStart,
+            rangeEndDateIso = orderedEnd,
+            query = if (settingRange && queryIsDateOrRange) "" else current.query,
+            useAlternateDateFormat = false
+        )
+    }
+
+    fun clearDateRange() {
+        _filterState.value = _filterState.value.copy(
+            rangeStartDateIso = null,
+            rangeEndDateIso = null
         )
     }
 
@@ -566,25 +686,26 @@ class DocFolioViewModel(
             docs: List<ScannedDocument>,
             filter: VaultFilterState
         ): List<ScannedDocument> {
-            val activeDate = filter.activeDateIso
+            val (startIso, endIso) = filter.effectiveDateRange
             val rawQuery = filter.query.trim()
-            val isPureDateQuery = filter.parsedQueryDate != null && filter.explicitDateIso == null
+            val isPureDateOrRange = filter.isPureDateOrRangeQuery
 
             return docs.filter { doc ->
                 val matchesCategory = filter.selectedCategory == null ||
                     doc.categoryEnum == filter.selectedCategory
 
-                val matchesDate = if (activeDate != null) {
-                    matchesDocumentOnDate(doc, activeDate, filter.dateMatchMode)
+                val matchesDate = if (startIso != null || endIso != null) {
+                    matchesDocumentInDateRange(doc, startIso, endIso, filter.dateMatchMode)
                 } else {
                     true
                 }
 
-                val matchesText = if (rawQuery.isBlank() || isPureDateQuery) {
+                val matchesText = if (rawQuery.isBlank() || isPureDateOrRange) {
                     true
                 } else {
                     val needle = rawQuery.lowercase()
                     doc.title.lowercase().contains(needle) ||
+                        doc.localPdfFileName.lowercase().contains(needle) ||
                         doc.referenceNumber.lowercase().contains(needle) ||
                         doc.organization.lowercase().contains(needle) ||
                         doc.contractorOrParty.lowercase().contains(needle) ||
@@ -603,10 +724,25 @@ class DocFolioViewModel(
             doc: ScannedDocument,
             targetIso: String,
             mode: DateMatchMode
-        ): Boolean = when (mode) {
-            DateMatchMode.EITHER -> doc.filedDateIso == targetIso || doc.documentDateIso == targetIso
-            DateMatchMode.FILED_ONLY -> doc.filedDateIso == targetIso
-            DateMatchMode.DOCUMENT_ONLY -> doc.documentDateIso == targetIso
+        ): Boolean = matchesDocumentInDateRange(doc, targetIso, targetIso, mode)
+
+        fun matchesDocumentInDateRange(
+            doc: ScannedDocument,
+            startIso: String?,
+            endIso: String?,
+            mode: DateMatchMode
+        ): Boolean {
+            fun inRange(iso: String): Boolean {
+                if (iso.isBlank()) return false
+                val afterStart = startIso == null || iso >= startIso
+                val beforeEnd = endIso == null || iso <= endIso
+                return afterStart && beforeEnd
+            }
+            return when (mode) {
+                DateMatchMode.EITHER -> inRange(doc.filedDateIso) || inRange(doc.documentDateIso)
+                DateMatchMode.FILED_ONLY -> inRange(doc.filedDateIso)
+                DateMatchMode.DOCUMENT_ONLY -> inRange(doc.documentDateIso)
+            }
         }
     }
 }

@@ -13,6 +13,11 @@ data class ParsedDateQuery(
     val alternateIso: String? = null
 )
 
+data class ParsedDateRange(
+    val startIso: String,
+    val endIso: String
+)
+
 object DateSearchParser {
 
     private val isoRegex = Regex("""^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$""")
@@ -125,6 +130,26 @@ object DateSearchParser {
         }
 
         return null
+    }
+
+    /**
+     * Parses a user-typed date range such as "12/1/2026 - 24/2/2026",
+     * "12/1/2026 to 24/2/2026", or "2026-01-01..2026-01-31".
+     * Automatically orders startIso <= endIso.
+     */
+    fun parseDateRangeQuery(raw: String): ParsedDateRange? {
+        val trimmed = raw.trim()
+        if (trimmed.length < 13) return null
+        val rangeSeparator = Regex("""\s+(?:to|-|–|—)\s+|\.\.""")
+        val parts = rangeSeparator.split(trimmed)
+        if (parts.size != 2) return null
+        val first = parseDateQuery(parts[0])?.primaryIso ?: return null
+        val second = parseDateQuery(parts[1])?.primaryIso ?: return null
+        return if (first <= second) {
+            ParsedDateRange(startIso = first, endIso = second)
+        } else {
+            ParsedDateRange(startIso = second, endIso = first)
+        }
     }
 
     fun normalizeToIsoOrEmpty(raw: String?): String {

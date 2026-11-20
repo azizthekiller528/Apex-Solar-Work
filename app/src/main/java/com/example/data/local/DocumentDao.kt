@@ -27,14 +27,79 @@ interface DocumentDao {
         SELECT * FROM documents
         WHERE userId = :userId
           AND (
-              ocrContent LIKE '%' || :query || '%'
-              OR title LIKE '%' || :query || '%'
-              OR fileName LIKE '%' || :query || '%'
+              ocrContent LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
+              OR title LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
+              OR fileName LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
           )
         ORDER BY filedDateIso DESC, updatedAtMillis DESC
         """
     )
     fun searchDocuments(userId: String, query: String): Flow<List<DocumentEntity>>
+
+    /**
+     * Reactive Room query supporting live keyword search, inclusive ISO date-range filtering
+     * (single day, open-ended start/end, or bounded start..end), optional category filter,
+     * and dual-date matching mode (EITHER, FILED_ONLY, DOCUMENT_ONLY).
+     */
+    @Query(
+        """
+        SELECT * FROM documents
+        WHERE userId = :userId
+          AND (
+              :escapedKeyword = ''
+              OR title LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR fileName LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR referenceNumber LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR organization LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR contractorOrParty LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR summary LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR ocrContent LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR filedDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+              OR documentDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+          )
+          AND (
+              :category IS NULL
+              OR category = :category
+          )
+          AND (
+              (:startDateIso IS NULL AND :endDateIso IS NULL)
+              OR (
+                  :dateMatchMode = 'FILED_ONLY'
+                  AND (:startDateIso IS NULL OR filedDateIso >= :startDateIso)
+                  AND (:endDateIso IS NULL OR filedDateIso <= :endDateIso)
+              )
+              OR (
+                  :dateMatchMode = 'DOCUMENT_ONLY'
+                  AND documentDateIso != ''
+                  AND (:startDateIso IS NULL OR documentDateIso >= :startDateIso)
+                  AND (:endDateIso IS NULL OR documentDateIso <= :endDateIso)
+              )
+              OR (
+                  :dateMatchMode = 'EITHER'
+                  AND (
+                      (
+                          (:startDateIso IS NULL OR filedDateIso >= :startDateIso)
+                          AND (:endDateIso IS NULL OR filedDateIso <= :endDateIso)
+                      )
+                      OR (
+                          documentDateIso != ''
+                          AND (:startDateIso IS NULL OR documentDateIso >= :startDateIso)
+                          AND (:endDateIso IS NULL OR documentDateIso <= :endDateIso)
+                      )
+                  )
+              )
+          )
+        ORDER BY filedDateIso DESC, updatedAtMillis DESC
+        """
+    )
+    fun queryDocumentsByKeywordOrDateRange(
+        userId: String,
+        escapedKeyword: String,
+        startDateIso: String?,
+        endDateIso: String?,
+        category: String? = null,
+        dateMatchMode: String = "EITHER"
+    ): Flow<List<DocumentEntity>>
 
     @Query("SELECT * FROM documents WHERE id = :id LIMIT 1")
     suspend fun getById(id: String): DocumentEntity?

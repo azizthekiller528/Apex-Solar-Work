@@ -16,8 +16,16 @@ android {
     applicationId = "com.aistudio.docfolio.krmvqx"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1"
+    versionCode = 3
+    versionName = "1.2"
+
+    // App Check debug token for locally built debug APKs. Firebase AI Logic requires a valid
+    // App Check token; debug builds use DebugAppCheckProviderFactory, and the token it presents
+    // must be registered in the Firebase console (App Check -> Apps -> Manage debug tokens).
+    // Baking a fixed value in makes local builds reproducible instead of logging a random UUID.
+    val appCheckDebugToken =
+      (project.findProperty("docfolio.appcheck.debugToken") as String?) ?: ""
+    buildConfigField("String", "APPCHECK_DEBUG_TOKEN", "\"$appCheckDebugToken\"")
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

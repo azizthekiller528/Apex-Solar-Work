@@ -22,7 +22,12 @@ fun configureAppCheck(context: Context, intent: Intent?) {
         }
 
         if (BuildConfig.DEBUG) {
+            // Prefer an explicitly passed token (adb --es FIREBASE_APPCHECK_DEBUG_TOKEN ...),
+            // otherwise fall back to the token baked in at build time so local builds are
+            // reproducible and can be registered in Firebase ahead of time.
             val debugToken = intent?.getStringExtra(DEBUG_TOKEN_EXTRA)
+                ?.takeIf { it.isNotBlank() }
+                ?: BuildConfig.APPCHECK_DEBUG_TOKEN.takeIf { it.isNotBlank() }
             if (!debugToken.isNullOrEmpty()) {
                 val persistenceKey = FirebaseApp.getInstance().persistenceKey
                 val prefs = context.getSharedPreferences(
@@ -35,7 +40,7 @@ fun configureAppCheck(context: Context, intent: Intent?) {
                     .commit()
                 Log.d(TAG, "App Check debug secret configured successfully.")
             } else {
-                Log.w(TAG, "No debug token found in Intent extra.")
+                Log.w(TAG, "No debug token found in Intent extra or build config.")
             }
 
             FirebaseAppCheck.getInstance().installAppCheckProviderFactory(

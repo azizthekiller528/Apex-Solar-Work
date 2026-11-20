@@ -1,8 +1,6 @@
 package com.example.ui.components
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -48,16 +46,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -65,6 +62,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.ui.theme.MonoCodeStyle
@@ -76,6 +75,8 @@ import com.example.ui.theme.VerifiedTeal
 import com.example.ui.theme.VerifiedTealContainer
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
+import com.example.util.ThumbnailImageLoader
+import java.io.File
 
 fun categoryIcon(category: DocumentCategory): ImageVector = when (category) {
     DocumentCategory.MATERIAL_SLIP -> Icons.Outlined.Inventory2
@@ -126,47 +127,173 @@ fun CategoryBadge(
     }
 }
 
+private sealed interface ThumbnailSourceState {
+    data object Loading : ThumbnailSourceState
+    data class Ready(val file: File) : ThumbnailSourceState
+    data object Unavailable : ThumbnailSourceState
+}
+
 @Composable
 fun DocumentThumbnail(
     doc: ScannedDocument,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var bitmap by remember(doc.id, doc.localImageFileName, doc.previewBase64) {
-        mutableStateOf<Bitmap?>(null)
-    }
-
-    LaunchedEffect(doc.id, doc.localImageFileName, doc.previewBase64) {
-        bitmap = ImageStorageHelper.loadDocumentBitmap(
-            context = context,
+    val hasImageSource = doc.localImageFileName.isNotBlank() || doc.previewBase64.isNotBlank()
+    val cacheKey = remember(
+        doc.id,
+        doc.localImageFileName,
+        doc.previewBase64.length,
+        doc.previewBase64.hashCode()
+    ) {
+        ThumbnailImageLoader.buildCacheKey(
+            docId = doc.id,
             localImageFileName = doc.localImageFileName,
             previewBase64 = doc.previewBase64
         )
     }
 
+    // Bounded to at most 1 retry per cacheKey if Android OS evicted the cacheDir file while backgrounded
+    var retryGeneration by remember(cacheKey) { mutableStateOf(0) }
+
+    val sourceState by produceState<ThumbnailSourceState>(
+        initialValue = when {
+            !hasImageSource -> ThumbnailSourceState.Unavailable
+            else -> ImageStorageHelper.peekThumbnailSourceFile(cacheKey)
+                ?.let { ThumbnailSourceState.Ready(it) }
+                ?: ThumbnailSourceState.Loading
+        },
+        key1 = cacheKey,
+        key2 = hasImageSource,
+        key3 = retryGeneration
+    ) {
+        if (!hasImageSource) {
+            value = ThumbnailSourceState.Unavailable
+            return@produceState
+        }
+        if (retryGeneration > 0 || value !is ThumbnailSourceState.Ready) {
+            if (retryGeneration > 0) {
+                value = ThumbnailSourceState.Loading
+            }
+            val resolved = ImageStorageHelper.resolveThumbnailSourceFile(
+                context = context,
+                docId = doc.id,
+                localImageFileName = doc.localImageFileName,
+                previewBase64 = doc.previewBase64,
+                cacheKey = cacheKey
+            )
+            value = if (resolved != null) {
+                ThumbnailSourceState.Ready(resolved)
+            } else {
+                ThumbnailSourceState.Unavailable
+            }
+        }
+    }
+
+    val imageLoader = remember(context) { ThumbnailImageLoader.get(context) }
+    val readyFile = (sourceState as? ThumbnailSourceState.Ready)?.file
+    val imageRequest = remember(readyFile, cacheKey, retryGeneration) {
+        readyFile?.let { file ->
+            ThumbnailImageLoader.buildThumbnailRequest(
+                context = context,
+                sourceFile = file,
+                cacheKey = cacheKey
+            )
+        }
+    }
+
     Box(
         modifier = modifier
+            .testTag("doc_thumbnail_${doc.id}")
             .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center
     ) {
-        val loaded = bitmap
-        if (loaded != null) {
-            Image(
-                bitmap = loaded.asImageBitmap(),
-                contentDescription = "Preview of ${doc.title}",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.PictureAsPdf,
-                contentDescription = "PDF document placeholder",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(28.dp)
-            )
+        when {
+            imageRequest != null -> {
+                SubcomposeAsyncImage(
+                    model = imageRequest,
+                    imageLoader = imageLoader,
+                    contentDescription = "Preview of ${doc.title}",
+                    contentScale = ContentScale.Crop,
+                    onError = {
+                        if (retryGeneration == 0 && doc.previewBase64.isNotBlank()) {
+                            ImageStorageHelper.invalidateThumbnailSource(cacheKey)
+                            ThumbnailImageLoader.evict(context, cacheKey)
+                            retryGeneration = 1
+                        }
+                    },
+                    loading = {
+                        ThumbnailFallbackPlaceholder(
+                            category = doc.categoryEnum,
+                            isLoading = true
+                        )
+                    },
+                    error = {
+                        ThumbnailFallbackPlaceholder(
+                            category = doc.categoryEnum,
+                            isLoading = false
+                        )
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Compact PDF badge overlay for rapid visual scanning in document lists
+                Surface(
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.72f),
+                    shape = RoundedCornerShape(4.dp),
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(4.dp)
+                ) {
+                    Text(
+                        text = "PDF",
+                        style = MonoCodeStyle.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                    )
+                }
+            }
+
+            sourceState is ThumbnailSourceState.Loading -> {
+                ThumbnailFallbackPlaceholder(
+                    category = doc.categoryEnum,
+                    isLoading = true
+                )
+            }
+
+            else -> {
+                ThumbnailFallbackPlaceholder(
+                    category = doc.categoryEnum,
+                    isLoading = false
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun ThumbnailFallbackPlaceholder(
+    category: DocumentCategory,
+    isLoading: Boolean
+) {
+    val tint = if (isLoading) {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = if (isLoading) categoryIcon(category) else Icons.Default.PictureAsPdf,
+            contentDescription = if (isLoading) "Loading document preview" else "PDF document placeholder",
+            tint = tint,
+            modifier = Modifier.size(26.dp)
+        )
     }
 }
 

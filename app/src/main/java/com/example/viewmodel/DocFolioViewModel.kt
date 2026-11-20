@@ -19,6 +19,7 @@ import com.example.util.ImageStorageHelper
 import com.example.util.ParsedDateQuery
 import com.example.util.ParsedDateRange
 import com.example.util.SearchablePdfGenerator
+import com.example.util.ThumbnailImageLoader
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -615,7 +616,16 @@ class DocFolioViewModel(
                     ImageStorageHelper.deleteLocalFiles(
                         context = context,
                         imageFileName = doc.localImageFileName,
-                        pdfFileName = doc.localPdfFileName
+                        pdfFileName = doc.localPdfFileName,
+                        docId = doc.id
+                    )
+                    ThumbnailImageLoader.evict(
+                        context = context,
+                        cacheKey = ThumbnailImageLoader.buildCacheKey(
+                            docId = doc.id,
+                            localImageFileName = doc.localImageFileName,
+                            previewBase64 = doc.previewBase64
+                        )
                     )
                     _events.emit(OneShotEvent.ShowMessage("Document deleted"))
                     onDeleted()

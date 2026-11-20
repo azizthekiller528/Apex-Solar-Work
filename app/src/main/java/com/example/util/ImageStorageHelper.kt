@@ -14,6 +14,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.max
 import kotlin.math.min
 
@@ -21,9 +22,13 @@ object ImageStorageHelper {
 
     private const val DOCS_DIR = "docfolio"
     private const val CAPTURES_DIR = "captures"
+    private const val THUMBS_DIR = "doc_thumbs"
     private const val MAX_SCAN_EDGE = 1650
     private const val MAX_PREVIEW_EDGE = 480
     private const val MAX_PREVIEW_BASE64_LENGTH = 140_000
+
+    // O(1) in-memory map of cacheKey -> verified File to avoid main-thread disk checks and scroll flicker
+    private val thumbnailFileIndex = ConcurrentHashMap<String, File>()
 
     fun getDocsDirectory(context: Context): File {
         return File(context.filesDir, DOCS_DIR).apply { if (!exists()) mkdirs() }
@@ -83,13 +88,103 @@ object ImageStorageHelper {
         return if (file.exists() && file.length() > 0L) file else null
     }
 
-    fun deleteLocalFiles(context: Context, imageFileName: String, pdfFileName: String) {
+    fun deleteLocalFiles(
+        context: Context,
+        imageFileName: String,
+        pdfFileName: String,
+        docId: String = ""
+    ) {
         if (imageFileName.isNotBlank()) {
             File(getDocsDirectory(context), imageFileName).delete()
         }
         if (pdfFileName.isNotBlank()) {
             File(getDocsDirectory(context), pdfFileName).delete()
         }
+        if (docId.isNotBlank()) {
+            val keyPrefix = "doc_thumb_${docId}_"
+            thumbnailFileIndex.keys.removeIf { it.startsWith(keyPrefix) }
+            val safePrefix = "thumb_${sanitizeFileToken(docId)}_"
+            val thumbsDir = File(context.cacheDir, THUMBS_DIR)
+            thumbsDir.listFiles()?.forEach { file ->
+                if (file.name.startsWith(safePrefix)) {
+                    runCatching { file.delete() }
+                }
+            }
+        }
+    }
+
+    /**
+     * Non-blocking O(1) RAM lookup for a previously verified thumbnail source file.
+     * Prevents a 1-frame placeholder flash when LazyColumn items scroll back into view.
+     */
+    fun peekThumbnailSourceFile(cacheKey: String): File? = thumbnailFileIndex[cacheKey]
+
+    fun invalidateThumbnailSource(cacheKey: String) {
+        thumbnailFileIndex.remove(cacheKey)
+    }
+
+    /**
+     * Resolves a File source on Dispatchers.IO for Coil to downsample into a low-resolution thumbnail:
+     * 1. Prefers the local scanned image file (zero decoding here; Coil subsamples directly from disk).
+     * 2. Falls back to materializing the cloud-synced Base64 preview into an atomic cached file.
+     */
+    suspend fun resolveThumbnailSourceFile(
+        context: Context,
+        docId: String,
+        localImageFileName: String,
+        previewBase64: String,
+        cacheKey: String
+    ): File? = withContext(Dispatchers.IO) {
+        val indexed = thumbnailFileIndex[cacheKey]
+        if (indexed != null && indexed.exists() && indexed.length() > 0L) {
+            return@withContext indexed
+        } else if (indexed != null) {
+            thumbnailFileIndex.remove(cacheKey, indexed)
+        }
+
+        val localFile = getLocalFile(context, localImageFileName)
+        if (localFile != null) {
+            thumbnailFileIndex[cacheKey] = localFile
+            return@withContext localFile
+        }
+
+        if (previewBase64.isBlank()) return@withContext null
+
+        val thumbsDir = File(context.cacheDir, THUMBS_DIR).apply { if (!exists()) mkdirs() }
+        val safeDocToken = sanitizeFileToken(docId)
+        val targetFile = File(thumbsDir, "thumb_${safeDocToken}_${previewBase64.hashCode().toUInt()}.jpg")
+        if (targetFile.exists() && targetFile.length() > 0L) {
+            thumbnailFileIndex[cacheKey] = targetFile
+            return@withContext targetFile
+        }
+
+        val bytes = try {
+            Base64.decode(previewBase64, Base64.DEFAULT)
+        } catch (_: Exception) {
+            null
+        }
+        if (bytes == null || bytes.isEmpty()) return@withContext null
+
+        val tmpFile = File(thumbsDir, "${targetFile.name}.${System.nanoTime()}.tmp")
+        try {
+            FileOutputStream(tmpFile).use { out -> out.write(bytes) }
+            if (!tmpFile.renameTo(targetFile)) {
+                // Another coroutine may have created targetFile concurrently
+                tmpFile.delete()
+                if (!targetFile.exists() || targetFile.length() <= 0L) {
+                    return@withContext null
+                }
+            }
+            thumbnailFileIndex[cacheKey] = targetFile
+            targetFile
+        } catch (_: Exception) {
+            runCatching { tmpFile.delete() }
+            null
+        }
+    }
+
+    private fun sanitizeFileToken(raw: String): String {
+        return raw.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(48).ifBlank { "doc" }
     }
 
     suspend fun loadDocumentBitmap(

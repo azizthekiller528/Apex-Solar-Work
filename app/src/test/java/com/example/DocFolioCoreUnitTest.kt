@@ -1,8 +1,13 @@
 package com.example
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.util.Base64
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import coil.request.CachePolicy
+import coil.size.Precision
+import coil.size.Size
 import com.example.data.GeminiOcrService
 import com.example.data.local.DocFolioDatabase
 import com.example.data.local.LocalDocumentCacheRepository
@@ -10,12 +15,15 @@ import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.util.DateSearchParser
+import com.example.util.ImageStorageHelper
 import com.example.util.SearchablePdfGenerator
+import com.example.util.ThumbnailImageLoader
 import com.example.viewmodel.DocFolioViewModel
 import com.example.viewmodel.VaultFilterState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -23,6 +31,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import java.io.ByteArrayOutputStream
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -337,5 +346,68 @@ class DocFolioCoreUnitTest {
         } finally {
             db.close()
         }
+    }
+
+    @Test
+    fun coilThumbnailLoader_buildsLowResRequestsAndResolvesCachedSources() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        // Create a tiny real JPEG payload for Base64 fallback testing
+        val bmp = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        val baos = ByteArrayOutputStream()
+        bmp.compress(Bitmap.CompressFormat.JPEG, 75, baos)
+        val sampleBase64 = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+
+        // 1. Blank sources resolve cleanly to null
+        val blankKey = ThumbnailImageLoader.buildCacheKey("doc_empty", "", "")
+        assertNull(
+            ImageStorageHelper.resolveThumbnailSourceFile(
+                context = context,
+                docId = "doc_empty",
+                localImageFileName = "",
+                previewBase64 = "",
+                cacheKey = blankKey
+            )
+        )
+
+        // 2. Cloud-synced Base64 preview materializes atomically into a cached File and populates O(1) index
+        val base64Key = ThumbnailImageLoader.buildCacheKey("doc_cloud_1", "missing_local.jpg", sampleBase64)
+        val materialized = ImageStorageHelper.resolveThumbnailSourceFile(
+            context = context,
+            docId = "doc_cloud_1",
+            localImageFileName = "missing_local.jpg",
+            previewBase64 = sampleBase64,
+            cacheKey = base64Key
+        )
+        assertNotNull(materialized)
+        assertTrue(materialized!!.exists() && materialized.length() > 0L)
+        assertEquals(materialized, ImageStorageHelper.peekThumbnailSourceFile(base64Key))
+
+        // 3. Coil ImageRequest enforces low-resolution target bounds, RGB_565, INEXACT precision, and caching
+        val request = ThumbnailImageLoader.buildThumbnailRequest(
+            context = context,
+            sourceFile = materialized,
+            cacheKey = base64Key
+        )
+        assertEquals(materialized, request.data)
+        assertEquals(
+            Size(ThumbnailImageLoader.THUMBNAIL_WIDTH_PX, ThumbnailImageLoader.THUMBNAIL_HEIGHT_PX),
+            request.sizeResolver.size()
+        )
+        assertEquals(Precision.INEXACT, request.precision)
+        assertEquals(Bitmap.Config.RGB_565, request.bitmapConfig)
+        assertEquals(CachePolicy.ENABLED, request.memoryCachePolicy)
+        assertEquals(CachePolicy.ENABLED, request.diskCachePolicy)
+        assertEquals(base64Key, request.diskCacheKey)
+
+        // 4. Delete cleans up both the cached thumbnail file and the O(1) memory index
+        ImageStorageHelper.deleteLocalFiles(
+            context = context,
+            imageFileName = "",
+            pdfFileName = "",
+            docId = "doc_cloud_1"
+        )
+        assertNull(ImageStorageHelper.peekThumbnailSourceFile(base64Key))
+        assertFalse(materialized.exists())
     }
 }

@@ -23,6 +23,8 @@ import com.example.util.ThumbnailImageLoader
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,13 +34,18 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.Locale
 
 data class ScanDraft(
     val bitmap: Bitmap,
@@ -123,6 +130,16 @@ sealed interface OneShotEvent {
     data class OpenDocumentDetail(val docId: String) : OneShotEvent
 }
 
+sealed interface FirestoreSearchState {
+    data object Idle : FirestoreSearchState
+    data object Loading : FirestoreSearchState
+    data class Success(
+        val filter: VaultFilterState,
+        val documents: List<ScannedDocument>
+    ) : FirestoreSearchState
+    data class Error(val message: String) : FirestoreSearchState
+}
+
 class DocFolioViewModel(
     private val repository: DocumentRepository,
     private val ocrService: GeminiOcrService,
@@ -191,6 +208,66 @@ class DocFolioViewModel(
     private val _events = MutableSharedFlow<OneShotEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<OneShotEvent> = _events.asSharedFlow()
 
+    private val _searchRetryTrigger = MutableStateFlow(0)
+
+    @OptIn(FlowPreview::class)
+    private val debouncedFilterState: Flow<VaultFilterState> = _filterState
+        .debounce { filter ->
+            if (filter.query.isBlank() ||
+                filter.explicitDateIso != null ||
+                filter.hasExplicitRange ||
+                filter.parsedQueryDate != null ||
+                filter.parsedQueryDateRange != null
+            ) {
+                0L
+            } else {
+                220L
+            }
+        }
+        .distinctUntilChanged()
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val firestoreSearchState: StateFlow<FirestoreSearchState> =
+        combine(debouncedFilterState, _searchRetryTrigger) { filter, _ -> filter }
+            .flatMapLatest { filter ->
+                if (!filter.hasAnyActiveFilter) {
+                    flowOf(FirestoreSearchState.Idle)
+                } else {
+                    val keyword = if (filter.isPureDateOrRangeQuery) "" else filter.query.trim()
+                    val (startIso, endIso) = filter.effectiveDateRange
+                    repository.queryDocumentsByKeywordOrDateRange(
+                        userId = currentUserId,
+                        keyword = keyword,
+                        startDateIso = startIso,
+                        endDateIso = endIso,
+                        category = filter.selectedCategory,
+                        dateMatchMode = filter.dateMatchMode
+                    )
+                        .map<List<ScannedDocument>, FirestoreSearchState> {
+                            FirestoreSearchState.Success(filter = filter, documents = it)
+                        }
+                        .onStart { emit(FirestoreSearchState.Loading) }
+                        .catch { error ->
+                            val firestoreError = generateSequence(error) { it.cause }
+                                .filterIsInstance<FirebaseFirestoreException>()
+                                .firstOrNull()
+                            if (firestoreError == null && error is CancellationException) throw error
+                            val rootError = firestoreError ?: error
+                            Log.w(TAG, "Firestore search query warning", rootError)
+                            emit(
+                                FirestoreSearchState.Error(
+                                    rootError.localizedMessage ?: "Cloud search unavailable — showing cached results"
+                                )
+                            )
+                        }
+                }
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = FirestoreSearchState.Idle
+            )
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val roomFilteredDocuments: StateFlow<List<DocumentEntity>?> =
         if (localCache == null) {
@@ -223,11 +300,18 @@ class DocFolioViewModel(
         }
 
     val filteredDocuments: StateFlow<List<ScannedDocument>> =
-        combine(documentsState, _filterState, roomFilteredDocuments) { state, filter, roomMatches ->
-            val docs = (state as? UiState.Success)?.data ?: return@combine emptyList()
+        combine(
+            documentsState,
+            _filterState,
+            roomFilteredDocuments,
+            firestoreSearchState
+        ) { state, filter, roomMatches, cloudSearch ->
+            val docs = (state as? UiState.Success)?.data ?: emptyList()
             if (!filter.hasAnyActiveFilter) {
                 docs
-            } else if (roomMatches != null) {
+            } else if (cloudSearch is FirestoreSearchState.Success && cloudSearch.filter == filter) {
+                cloudSearch.documents
+            } else if (roomMatches != null && docs.isNotEmpty()) {
                 val matchedIds = roomMatches.mapTo(HashSet(roomMatches.size)) { it.id }
                 docs.filter { it.id in matchedIds }
             } else {
@@ -238,6 +322,10 @@ class DocFolioViewModel(
             started = SharingStarted.WhileSubscribed(5000L),
             initialValue = emptyList()
         )
+
+    fun retryFirestoreSearch() {
+        _searchRetryTrigger.value += 1
+    }
 
     fun updateSearchQuery(newQuery: String) {
         val current = _filterState.value
@@ -731,17 +819,7 @@ class DocFolioViewModel(
                 val matchesText = if (rawQuery.isBlank() || isPureDateOrRange) {
                     true
                 } else {
-                    val needle = rawQuery.lowercase()
-                    doc.title.lowercase().contains(needle) ||
-                        doc.localPdfFileName.lowercase().contains(needle) ||
-                        doc.referenceNumber.lowercase().contains(needle) ||
-                        doc.organization.lowercase().contains(needle) ||
-                        doc.contractorOrParty.lowercase().contains(needle) ||
-                        doc.summary.lowercase().contains(needle) ||
-                        doc.ocrFullText.lowercase().contains(needle) ||
-                        doc.extractedFields.any { it.lowercase().contains(needle) } ||
-                        DateSearchParser.formatSlashDate(doc.filedDateIso).contains(needle) ||
-                        DateSearchParser.formatSlashDate(doc.documentDateIso).contains(needle)
+                    DocumentRepository.matchesKeyword(doc, rawQuery.lowercase(Locale.US))
                 }
 
                 matchesCategory && matchesDate && matchesText

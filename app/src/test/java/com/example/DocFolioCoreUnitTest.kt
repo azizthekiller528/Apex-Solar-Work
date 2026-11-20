@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import coil.request.CachePolicy
 import coil.size.Precision
 import coil.size.Size
+import com.example.data.DocumentRepository
 import com.example.data.GeminiOcrService
 import com.example.data.local.DocFolioDatabase
 import com.example.data.local.LocalDocumentCacheRepository
@@ -409,5 +410,66 @@ class DocFolioCoreUnitTest {
         )
         assertNull(ImageStorageHelper.peekThumbnailSourceFile(base64Key))
         assertFalse(materialized.exists())
+    }
+
+    @Test
+    fun firestoreSearchHelpers_normalizeBoundsMergeDedupeAndMatchMultiTokenKeywords() {
+        // 1. Auto-orders inverted ISO bounds and drops malformed dates
+        val (orderedStart, orderedEnd) = DocumentRepository.normalizeDateRangeBounds(
+            startDateIso = "2026-03-15",
+            endDateIso = "2026-01-01"
+        )
+        assertEquals("2026-01-01", orderedStart)
+        assertEquals("2026-03-15", orderedEnd)
+
+        val (invalidStart, validEnd) = DocumentRepository.normalizeDateRangeBounds(
+            startDateIso = "not-a-date",
+            endDateIso = "2026-02-24"
+        )
+        assertNull(invalidStart)
+        assertEquals("2026-02-24", validEnd)
+
+        // 2. Merges and deduplicates dual-field (filedDateIso + documentDateIso) Firestore results
+        val docA = ScannedDocument(
+            id = "doc_a",
+            title = "Material Requisition Slip #6717",
+            referenceNumber = "6717",
+            organization = "Kalpataru Projects",
+            contractorOrParty = "Apex Solar",
+            documentDateIso = "2026-02-24",
+            filedDateIso = "2026-01-12",
+            extractedFields = listOf("Approved By: Rajesh Sharma"),
+            localPdfFileName = "slip_6717_searchable.pdf",
+            ocrFullText = "Nut Bolt 8mm Required 440 Issued 440"
+        )
+        val docB = ScannedDocument(
+            id = "doc_b",
+            title = "Solar System Inspection Protocol",
+            filedDateIso = "2026-02-24",
+            ocrFullText = "Earthing Resistance Test"
+        )
+        val merged = DocumentRepository.mergeDistinctDocuments(
+            first = listOf(docA, docB),
+            second = listOf(docB, docA)
+        )
+        assertEquals(listOf("doc_a", "doc_b"), merged.map { it.id })
+
+        // 3. Multi-token cross-field keyword matching works across org, ref, extractedFields, PDF name & slash date
+        assertTrue(DocumentRepository.matchesKeyword(docA, "kalpataru 6717"))
+        assertTrue(DocumentRepository.matchesKeyword(docA, "rajesh sharma"))
+        assertTrue(DocumentRepository.matchesKeyword(docA, "slip_6717_searchable.pdf"))
+        assertTrue(DocumentRepository.matchesKeyword(docA, "24/02/2026"))
+        assertTrue(DocumentRepository.matchesKeyword(docA, ""))
+        assertFalse(DocumentRepository.matchesKeyword(docA, "kalpataru earthing"))
+
+        // 4. Date range presets produce valid ordered ISO dates
+        val today = DateSearchParser.todayIso()
+        val sevenDaysAgo = DateSearchParser.daysAgoIso(6)
+        val monthStart = DateSearchParser.startOfCurrentMonthIso()
+        assertTrue(DateSearchParser.isValidIsoDate(sevenDaysAgo))
+        assertTrue(DateSearchParser.isValidIsoDate(monthStart))
+        assertTrue(sevenDaysAgo <= today)
+        assertTrue(monthStart <= today)
+        assertTrue(monthStart.endsWith("-01"))
     }
 }

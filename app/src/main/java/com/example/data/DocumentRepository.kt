@@ -4,24 +4,29 @@ import android.content.Context
 import com.example.R
 import com.example.firebase.OperationType
 import com.example.firebase.handleFirestoreError
+import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.util.DateSearchParser
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreException
+import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.snapshots
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
+import java.util.Locale
 
 class DocumentRepository(
     private val db: FirebaseFirestore,
@@ -71,6 +76,169 @@ class DocumentRepository(
                     throw error
                 }
         )
+    }
+
+    /**
+     * Executes live Firestore queries scoped to `/users/{userId}/documents` filtered by
+     * date range (`filedDateIso` / `documentDateIso`), category, and/or keyword.
+     *
+     * Uses single-field Firestore range/equality queries exclusively so no custom composite
+     * indexes are required (preventing FAILED_PRECONDITION index errors at runtime).
+     * For [DateMatchMode.EITHER], combines two live single-field Firestore range queries
+     * and deduplicates matching documents by ID.
+     */
+    fun queryDocumentsByKeywordOrDateRange(
+        userId: String,
+        keyword: String = "",
+        startDateIso: String? = null,
+        endDateIso: String? = null,
+        category: DocumentCategory? = null,
+        dateMatchMode: DateMatchMode = DateMatchMode.EITHER
+    ): Flow<List<ScannedDocument>> = flow {
+        require(userId.isNotBlank()) { "User ID must not be blank." }
+        val path = "users/$userId/documents"
+        val collection = db.collection("users").document(userId).collection("documents")
+        val (orderedStart, orderedEnd) = normalizeDateRangeBounds(startDateIso, endDateIso)
+        val hasDateFilter = orderedStart != null || orderedEnd != null
+        val normalizedKeyword = keyword.trim().lowercase(Locale.US)
+
+        val baseStream: Flow<List<ScannedDocument>> = when {
+            hasDateFilter -> {
+                when (dateMatchMode) {
+                    DateMatchMode.FILED_ONLY -> {
+                        observeSingleFieldQuery(
+                            query = buildDateRangeQuery(
+                                collection = collection,
+                                fieldName = "filedDateIso",
+                                startIso = orderedStart,
+                                endIso = orderedEnd,
+                                excludeBlankLowerBound = false
+                            ),
+                            userId = userId,
+                            path = path
+                        )
+                    }
+
+                    DateMatchMode.DOCUMENT_ONLY -> {
+                        observeSingleFieldQuery(
+                            query = buildDateRangeQuery(
+                                collection = collection,
+                                fieldName = "documentDateIso",
+                                startIso = orderedStart,
+                                endIso = orderedEnd,
+                                excludeBlankLowerBound = true
+                            ),
+                            userId = userId,
+                            path = path
+                        )
+                    }
+
+                    DateMatchMode.EITHER -> {
+                        val filedFlow = observeSingleFieldQuery(
+                            query = buildDateRangeQuery(
+                                collection = collection,
+                                fieldName = "filedDateIso",
+                                startIso = orderedStart,
+                                endIso = orderedEnd,
+                                excludeBlankLowerBound = false
+                            ),
+                            userId = userId,
+                            path = path
+                        )
+                        val docDateFlow = observeSingleFieldQuery(
+                            query = buildDateRangeQuery(
+                                collection = collection,
+                                fieldName = "documentDateIso",
+                                startIso = orderedStart,
+                                endIso = orderedEnd,
+                                excludeBlankLowerBound = true
+                            ),
+                            userId = userId,
+                            path = path
+                        )
+                        combine(filedFlow, docDateFlow) { byFiled, byDocDate ->
+                            mergeDistinctDocuments(byFiled, byDocDate)
+                        }
+                    }
+                }
+            }
+
+            category != null -> {
+                observeSingleFieldQuery(
+                    query = collection
+                        .whereEqualTo("category", category.name)
+                        .limit(QUERY_LIMIT),
+                    userId = userId,
+                    path = path
+                )
+            }
+
+            else -> {
+                observeSingleFieldQuery(
+                    query = collection
+                        .orderBy("filedDateIso", Query.Direction.DESCENDING)
+                        .limit(QUERY_LIMIT),
+                    userId = userId,
+                    path = path
+                )
+            }
+        }
+
+        emitAll(
+            baseStream.map { docs ->
+                docs.filter { doc ->
+                    val categoryMatches = category == null || doc.categoryEnum == category
+                    val keywordMatches = matchesKeyword(doc, normalizedKeyword)
+                    categoryMatches && keywordMatches
+                }.sortedWith(DOCUMENT_SORT_ORDER)
+            }
+        )
+    }
+
+    private fun buildDateRangeQuery(
+        collection: CollectionReference,
+        fieldName: String,
+        startIso: String?,
+        endIso: String?,
+        excludeBlankLowerBound: Boolean
+    ): Query {
+        var query: Query = collection
+        val lowerBound = startIso ?: if (excludeBlankLowerBound) MIN_NON_BLANK_ISO_DATE else null
+        if (lowerBound != null) {
+            query = query.whereGreaterThanOrEqualTo(fieldName, lowerBound)
+        }
+        if (endIso != null) {
+            query = query.whereLessThanOrEqualTo(fieldName, endIso)
+        }
+        return query
+            .orderBy(fieldName, Query.Direction.DESCENDING)
+            .limit(QUERY_LIMIT)
+    }
+
+    private fun observeSingleFieldQuery(
+        query: Query,
+        userId: String,
+        path: String
+    ): Flow<List<ScannedDocument>> {
+        return query
+            .snapshots()
+            .map { snapshot ->
+                snapshot.toObjects(
+                    ScannedDocument::class.java,
+                    DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
+                )
+            }
+            .catch { error ->
+                val firestoreError = generateSequence(error) { it.cause }
+                    .filterIsInstance<FirebaseFirestoreException>()
+                    .firstOrNull()
+                if (firestoreError == null && error is CancellationException) throw error
+                val exceptionToLog = firestoreError ?: (error as? Exception)
+                if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    handleFirestoreError(exceptionToLog, OperationType.LIST, path)
+                }
+                throw error
+            }
     }
 
     suspend fun createDocument(docId: String, doc: ScannedDocument): Result<String> {
@@ -233,7 +401,66 @@ class DocumentRepository(
         }
     }
 
-    private companion object {
-        val ID_REGEX = Regex("^[a-zA-Z0-9_\\-]+$")
+    companion object {
+        private val ID_REGEX = Regex("^[a-zA-Z0-9_\\-]+$")
+        private const val QUERY_LIMIT = 500L
+        private const val MIN_NON_BLANK_ISO_DATE = "0001-01-01"
+
+        private val DOCUMENT_SORT_ORDER = compareByDescending<ScannedDocument> { it.filedDateIso }
+            .thenByDescending { it.createdAt?.seconds ?: 0L }
+
+        internal fun normalizeDateRangeBounds(
+            startDateIso: String?,
+            endDateIso: String?
+        ): Pair<String?, String?> {
+            val validStart = startDateIso?.trim()?.takeIf { DateSearchParser.isValidIsoDate(it) }
+            val validEnd = endDateIso?.trim()?.takeIf { DateSearchParser.isValidIsoDate(it) }
+            return if (validStart != null && validEnd != null && validStart > validEnd) {
+                validEnd to validStart
+            } else {
+                validStart to validEnd
+            }
+        }
+
+        internal fun mergeDistinctDocuments(
+            first: List<ScannedDocument>,
+            second: List<ScannedDocument>
+        ): List<ScannedDocument> {
+            val merged = LinkedHashMap<String, ScannedDocument>(first.size + second.size)
+            for (doc in first) {
+                merged[doc.id] = doc
+            }
+            for (doc in second) {
+                merged.putIfAbsent(doc.id, doc)
+            }
+            return merged.values.toList()
+        }
+
+        internal fun matchesKeyword(doc: ScannedDocument, normalizedKeyword: String): Boolean {
+            if (normalizedKeyword.isBlank()) return true
+            val tokens = normalizedKeyword.split(Regex("\\s+")).filter { it.isNotBlank() }
+            if (tokens.isEmpty()) return true
+            val haystack = buildString {
+                append(doc.title).append(' ')
+                append(doc.localPdfFileName).append(' ')
+                append(doc.referenceNumber).append(' ')
+                append(doc.organization).append(' ')
+                append(doc.contractorOrParty).append(' ')
+                append(doc.summary).append(' ')
+                append(doc.extractedFields.joinToString(" ")).append(' ')
+                append(doc.ocrFullText).append(' ')
+                append(doc.categoryEnum.displayName).append(' ')
+                append(doc.categoryEnum.shortLabel).append(' ')
+                append(doc.filedDateIso).append(' ')
+                append(doc.documentDateIso).append(' ')
+                if (doc.filedDateIso.isNotBlank()) {
+                    append(DateSearchParser.formatSlashDate(doc.filedDateIso)).append(' ')
+                }
+                if (doc.documentDateIso.isNotBlank()) {
+                    append(DateSearchParser.formatSlashDate(doc.documentDateIso))
+                }
+            }.lowercase(Locale.US)
+            return tokens.all { token -> haystack.contains(token) }
+        }
     }
 }

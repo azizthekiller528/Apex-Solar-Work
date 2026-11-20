@@ -31,4 +31,13 @@
     <string name="camera_permission_settings">Open App Settings</string>
     <string name="camera_unavailable_title">Camera Unavailable</string>
     <string name="camera_unavailable_body">No active camera could be opened on this device. You can still scan documents by picking a photo from Gallery.</string>
+    <string name="search_from_date">From date</string>
+    <string name="search_to_date">To date</string>
+    <string name="search_clear_range">Clear range</string>
+    <string name="search_preset_today">Today</string>
+    <string name="search_preset_last_7_days">Last 7d</string>
+    <string name="search_preset_last_30_days">Last 30d</string>
+    <string name="search_preset_this_month">This Month</string>
+    <string name="search_cloud_query_active">Firestore live query</string>
+    <string name="search_retry">Retry</string>
 </resources>

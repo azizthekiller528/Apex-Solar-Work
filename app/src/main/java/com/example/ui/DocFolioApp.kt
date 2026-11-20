@@ -133,6 +133,7 @@ fun DocFolioAuthenticatedRoot(
     val documentsState by viewModel.documentsState.collectAsStateWithLifecycle()
     val filteredDocuments by viewModel.filteredDocuments.collectAsStateWithLifecycle()
     val filterState by viewModel.filterState.collectAsStateWithLifecycle()
+    val firestoreSearchState by viewModel.firestoreSearchState.collectAsStateWithLifecycle()
     val selectedDateLookupIso by viewModel.selectedDateLookupIso.collectAsStateWithLifecycle()
     val dateLookupMode by viewModel.dateLookupMode.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -500,17 +501,20 @@ fun DocFolioAuthenticatedRoot(
                             documentsState = documentsState,
                             filteredDocuments = filteredDocuments,
                             filterState = filterState,
+                            firestoreSearchState = firestoreSearchState,
                             starredOnly = false,
                             isExportingPdf = isExportingPdf,
                             onQueryChange = viewModel::updateSearchQuery,
                             onToggleAlternateDate = viewModel::toggleAlternateDateInterpretation,
                             onSelectExplicitDate = viewModel::setExplicitDateFilter,
+                            onSelectDateRange = viewModel::setDateRange,
                             onSelectRangeStart = viewModel::setDateRangeStart,
                             onSelectRangeEnd = viewModel::setDateRangeEnd,
                             onClearDateRange = viewModel::clearDateRange,
                             onClearSearchAndDate = viewModel::clearSearchAndDateFilters,
                             onSelectCategory = viewModel::setCategoryFilter,
                             onSelectDateMatchMode = viewModel::setVaultDateMatchMode,
+                            onRetryCloudSearch = viewModel::retryFirestoreSearch,
                             onClearFilters = viewModel::clearVaultFilters,
                             onOpenDocument = { doc -> selectedDocId = doc.id },
                             onToggleStar = viewModel::toggleStar,
@@ -544,17 +548,20 @@ fun DocFolioAuthenticatedRoot(
                             documentsState = documentsState,
                             filteredDocuments = filteredDocuments,
                             filterState = filterState,
+                            firestoreSearchState = firestoreSearchState,
                             starredOnly = true,
                             isExportingPdf = isExportingPdf,
                             onQueryChange = viewModel::updateSearchQuery,
                             onToggleAlternateDate = viewModel::toggleAlternateDateInterpretation,
                             onSelectExplicitDate = viewModel::setExplicitDateFilter,
+                            onSelectDateRange = viewModel::setDateRange,
                             onSelectRangeStart = viewModel::setDateRangeStart,
                             onSelectRangeEnd = viewModel::setDateRangeEnd,
                             onClearDateRange = viewModel::clearDateRange,
                             onClearSearchAndDate = viewModel::clearSearchAndDateFilters,
                             onSelectCategory = viewModel::setCategoryFilter,
                             onSelectDateMatchMode = viewModel::setVaultDateMatchMode,
+                            onRetryCloudSearch = viewModel::retryFirestoreSearch,
                             onClearFilters = viewModel::clearVaultFilters,
                             onOpenDocument = { doc -> selectedDocId = doc.id },
                             onToggleStar = viewModel::toggleStar,

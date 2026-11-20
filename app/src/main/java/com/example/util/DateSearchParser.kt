@@ -59,6 +59,25 @@ object DateSearchParser {
         )
     }
 
+    fun daysAgoIso(daysAgo: Int): String {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_YEAR, -daysAgo.coerceAtLeast(0))
+        return buildIso(
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH) + 1,
+            cal.get(Calendar.DAY_OF_MONTH)
+        )
+    }
+
+    fun startOfCurrentMonthIso(): String {
+        val cal = Calendar.getInstance()
+        return buildIso(
+            cal.get(Calendar.YEAR),
+            cal.get(Calendar.MONTH) + 1,
+            1
+        )
+    }
+
     fun isValidIsoDate(iso: String): Boolean {
         val parts = iso.split("-")
         if (parts.size != 3) return false

@@ -1,113 +1,132 @@
-# AGENTS.md — DocFolio Engineering Handoff Guide
+# AGENTS.md — Apex Solar Work Engineering & Agent Guardrails
 
-This guide gives any developer or AI coding agent complete context to understand, modify, build, and test **DocFolio** without breaking Firebase, authentication, signing, or PDF generation.
-
----
-
-## 1. Product Purpose & Domain Context
-
-**DocFolio** is a Kotlin + Jetpack Compose (Material 3) Android app for scanning physical field/site documents into searchable PDFs with Gemini OCR and letting a manager/boss instantly pull up every document filed on a specific date (e.g. `12/1/2026` or `24/02/2026`).
-
-Real-world target documents include:
-- **Printed inspection tables** (e.g., *Kalpataru — Solar System Inspection Protocol* with Scheme Name, Block, Solar Capacity, Date, Make/Status/Remark columns, and signatures).
-- **Handwritten carbon-copy requisition slips** (e.g., *Kalpataru Projects International Ltd. — Material Requisition & Issue Slip*, slip number, `DD/MM/YYYY` handwritten date, sub-contractor, department, quantities, remarks).
-
-Two bundled sample images live under `app/src/main/assets/sample_forms/` (`kalpataru_material_slip.jpg`, `kalpataru_solar_inspection.jpg`) and are offered inside the Scan bottom sheet as optional test inputs. The Firestore vault itself starts empty.
+> **ATTENTION ALL AI CODING AGENTS (Gemini, Claude, Cursor, Copilot, etc.)**:
+> Read this entire document before editing ANY file.
+> The architectural decisions below were requested and approved by the project owner.
+> **DO NOT REVERT OR OVERWRITE THESE CORE INVARIANTS.**
 
 ---
 
-## 2. Critical Invariants (Do Not Break)
+## 1. Project Overview & Identity
 
-1. **Identity & Package Split**:
-   - `namespace = "com.example"` (keep Kotlin packages under `com.example.*` and generated `R` class unchanged).
-   - `applicationId = "com.aistudio.docfolio.krmvqx"` (registered in `app/google-services.json` and `FileProvider` authority `${applicationId}.fileprovider`). Do not change it unless re-registering Firebase.
-2. **Signing & Keystore**:
-   - Do **not** alter `signingConfigs` in `app/build.gradle.kts` or `debug.keystore.base64`.
-   - `debug.keystore.base64` decodes to `debug.keystore` whose SHA-1 is already registered in `app/google-services.json` for Google Sign-In.
-3. **Firebase Initialization Order**:
-   - `configureAppCheck(this, intent)` in `MainActivity.onCreate()` **must** run before any Firebase AI Logic or Firestore calls.
-   - `GeminiOcrService` creates `Firebase.ai.generativeModel(...)` lazily so App Check is guaranteed initialized first.
-4. **Named Cloud Firestore Database**:
-   - **Never** use parameterless `Firebase.firestore` or `FirebaseFirestore.getInstance()`.
-   - Always connect via `Firebase.firestore(Firebase.app, context.getString(R.string.firestore_database_id))` (database ID: `ai-studio-android-docfolio-c591d8bf-0c72-4b94-b6ba-4700a1282700`, configured in `app/src/main/res/values/firebase_applet_config.xml`).
-5. **Authentication**:
-   - Uses Google Sign-In via Jetpack `CredentialManager` (`AuthHelper.kt`: interactive `GetSignInWithGoogleOption`, silent `GetGoogleIdOption`, single option per `GetCredentialRequest`).
-   - Do **not** switch to anonymous auth (`signInAnonymously()`).
-6. **AI / OCR Backend**:
-   - Uses **Firebase AI Logic** (`Firebase.ai`) backed by App Check. No `GEMINI_API_KEY` is used or needed.
-7. **Storage & Play Policy Compliance**:
-   - Never add `READ_EXTERNAL_STORAGE` or `READ_MEDIA_IMAGES`. Gallery import uses `ActivityResultContracts.PickVisualMedia` and permanent PDF export uses `ActivityResultContracts.CreateDocument`.
+- **App Name**: **Apex Solar Work** (formerly DocFolio)
+- **Current Version**: **v1.5** (versionCode `6`)
+- **Repository**: [https://github.com/azizthekiller2/Apex-Solar-Work](https://github.com/azizthekiller2/Apex-Solar-Work)
+- **Application ID**: `com.aistudio.docfolio.krmvqx` (registered in `app/google-services.json`)
+- **Code Namespace**: `com.example` (MainActivity is `com.example.MainActivity`)
+- **Primary Use Case**: Field engineers, solar site workers, and management use this app to take photos of site slips (inspection protocols, material requisition slips, delivery challans) and store them in a shared company vault where the boss can search by date (e.g. `12/5/2026`) and view high-resolution photos on remote devices.
 
 ---
 
-## 3. Data Model & Firestore Rules Contract
+## 2. CRITICAL INVARIANTS (DO NOT BREAK / DO NOT OVERWRITE)
 
-Collection path: `/users/{userId}/documents/{docId}`
+### Rule 1: Shared Company Vault (NO Login Silos)
+- **Path**: Cloud Firestore collection is `/company_documents/{docId}`.
+- **NEVER** change this back to `/users/{userId}/documents`.
+- **NEVER** add back mandatory Google Sign-In gates or block app entry behind authentication.
+- **Why**: The boss and multiple field workers across the company install the APK on different phones. Everyone must instantly see and search all company slips without individual account silos.
 
-Defined in `firebase-blueprint.json`, enforced strictly in `firestore.rules`, and mirrored in `app/src/main/java/com/example/model/DocumentModels.kt` (`@Keep @IgnoreExtraProperties ScannedDocument`) and `DocumentRepository.kt`.
+### Rule 2: Fast 1-Second Save Flow (AI OCR is Optional)
+- In `ScanReviewScreen.kt`, the AI button is labeled **"Auto-Fill with AI (Optional)"** (`OutlinedButton`).
+- **NEVER** make AI OCR automatic or block the user from saving immediately.
+- **Why**: Cloud AI scanning took too long on slow mobile connections. Field workers take a photo, confirm the date, and tap **Save** in 1 second. AI auto-fill is purely an optional helper.
 
-### Exact 18 Required Keys on `create`
-`userId`, `title`, `category`, `documentDateIso`, `filedDateIso`, `referenceNumber`, `organization`, `contractorOrParty`, `summary`, `extractedFields`, `ocrFullText`, `localImageFileName`, `localPdfFileName`, `previewBase64`, `pageCount`, `starred`, `createdAt`, `updatedAt`.
+### Rule 3: High-Resolution Photo Quality for Remote Zoom
+- In `util/ImageStorageHelper.kt`:
+  - `MAX_PREVIEW_EDGE = 800` (Do NOT downgrade to 480).
+  - `MAX_PREVIEW_BASE64_LENGTH = 250_000` (Do NOT downgrade to 140_000).
+- In `data/DocumentRepository.kt`:
+  - Base64 truncation ceiling is `280_000` chars.
+- In `ui/DocumentDetailScreen.kt`:
+  - Tapping the photo opens a full-screen zoom dialog with pinch-to-zoom (`rememberTransformableState`).
+- **Why**: When the boss opens slips on their phone, handwritten carbon-copy text and small numbers must remain sharp and readable when zoomed in.
 
-Key rule constraints:
-- Never include an `"id"` key in Firestore write maps (`@DocumentId` reads the doc ID automatically).
-- `category` must be one of: `MATERIAL_SLIP`, `INSPECTION_PROTOCOL`, `DELIVERY_CHALLAN`, `INVOICE_RECEIPT`, `SITE_REPORT`, `OTHER`.
-- `filedDateIso` must match `YYYY-MM-DD`; `documentDateIso` may be `""` or `YYYY-MM-DD`.
-- `extractedFields`: list of up to 30 strings (each `<= 300` chars).
-- `ocrFullText`: `<= 50_000` chars.
-- `previewBase64`: `<= 160_000` chars (client compresses JPEG to `<= 140_000` chars so cross-device preview & PDF regeneration stay well under Firestore's 1 MiB document limit).
-- `createdAt` & `updatedAt`: submitted via `FieldValue.serverTimestamp()`, immutable `createdAt` on updates.
-- Updates are restricted to three explicit actions in `firestore.rules`:
-  - `isEditDocumentAction()` (metadata + OCR + `localPdfFileName` + `updatedAt`)
-  - `isToggleStarAction()` (`starred` + `updatedAt`)
-  - `isUpdateLocalFilesAction()` (`localImageFileName`, `localPdfFileName`, `previewBase64`, `updatedAt`)
+### Rule 4: Boss Date Search Support
+- `util/DateSearchParser.kt` parses `DD/MM/YYYY` (default Indian convention) and ISO `YYYY-MM-DD`.
+- Ambiguous dates like `12/5/2026` are automatically resolved for search so the boss finds all slips filed on that date.
+- Both the main Vault search bar and the **By Date** tab calendar support instant date lookup.
 
-If you add a new field to `ScannedDocument`, you must update **all three**: `DocumentModels.kt`/`DocumentRepository.kt`, `firebase-blueprint.json`, and `firestore.rules` (then re-run `firestore.test.js` and deploy rules).
+### Rule 5: In-App Auto-Updater & Relay Endpoint
+- Managed by `util/AppUpdateManager.kt`.
+- Checks for updates automatically on app startup.
+- **Primary / Fallback URL**: Must use the Oracle VM relay manifest endpoint:
+  ```text
+  https://docfolio.130.210.30.151.sslip.io/api/documents/apex_update_manifest/photo?token=docfolio_secret_test_key_99812
+  ```
+- **DO NOT** rely on unauthenticated `raw.githubusercontent.com` URLs — the `@azizthekiller2` GitHub account currently has a spam flag that causes raw URLs and GitHub Actions to return 404.
+- **DO NOT** restart, modify, or interfere with other systemd services on Oracle VM `130.210.30.151` (it hosts 17+ mission-critical Telegram bots).
+
+### Rule 6: Firestore Security Rules
+- Database ID: `ai-studio-android-docfolio-c591d8bf-0c72-4b94-b6ba-4700a1282700`.
+- Active production rules:
+  ```javascript
+  rules_version = '2';
+  service cloud.firestore {
+    match /databases/{database}/documents {
+      match /company_documents/{docId} {
+        allow read, write: if true;
+      }
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+  }
+  ```
+- Deploy command: `firebase deploy --only firestore:rules --project gen-lang-client-0228559203`.
 
 ---
 
-## 4. Core Module Reference
+## 3. Architecture & File Reference
 
-| File | Responsibility |
-| :--- | :--- |
-| `MainActivity.kt` | Calls `configureAppCheck(this, intent)`, `enableEdgeToEdge()`, auth-gates UI via `AuthHelper.authStateFlow()`, scopes `DocFolioViewModel` with `key(user.uid)`. |
-| `firebase/AppCheckSetup.kt` | Registers debug token (synchronous `.commit()`) in debug builds and `recaptcha_site_key` in release builds. |
-| `firebase/AuthHelper.kt` | Credential Manager Google Sign-In, silent auto-sign-in, `NonCancellable` sign-out, auth state flow. |
-| `data/GeminiOcrService.kt` | Calls `Firebase.ai.generativeModel(...)` with strict `Schema.obj(...)` JSON response schema, 60s timeout, `CancellationException` preservation, and fallback normalization. |
-| `data/DocumentRepository.kt` | Real-time Firestore `snapshots()` using `ServerTimestampBehavior.ESTIMATE`, 18-key create payload, action-scoped updates, delete. |
-| `data/local/DocumentEntity.kt`, `DocumentDao.kt`, `DocFolioDatabase.kt`, `LocalDocumentCacheRepository.kt` | Local Room SQLite metadata cache (filename, dates, local image/PDF paths, OCR content) mirrored one-way from Cloud Firestore. |
-| `util/DateSearchParser.kt` | Parses `DD/MM/YYYY` (default), `MM/DD/YYYY` alternate when ambiguous (e.g. `12/1/2026`), ISO `YYYY-MM-DD`, text dates (`12 Jan 2026`), and UTC millis round-trip for Material 3 `DatePicker`. |
-| `util/ImageStorageHelper.kt` | EXIF-aware bitmap decode, local storage in `filesDir/docfolio/`, compact Base64 JPEG thumbnail encoder/decoder. |
-| `util/SearchablePdfGenerator.kt` | Native Android `PdfDocument` A4 generator: Page 1 renders scanned photo + overlaid `alpha=1` selectable OCR text layer; Page 2+ renders structured metadata, extracted fields, and wrapped OCR transcript. Also generates multi-document Boss Daily Report PDFs and `FileProvider` intents. |
-| `viewmodel/DocFolioViewModel.kt` | Combines Firestore stream + Room one-way local cache sync + search query + explicit date filter + `DateMatchMode` (`EITHER`, `FILED_ONLY`, `DOCUMENT_ONLY`) + category + starred filters; coordinates OCR scanning, saving, editing, deleting, and PDF export. |
-| `ui/DocFolioApp.kt` | Adaptive navigation (`NavigationBar` / `NavigationRail`), CameraX `CameraView` launcher, `PickVisualMedia`, SAF `CreateDocument`, snackbar feedback. |
-| `ui/CameraView.kt` | In-app CameraX `PreviewView` + `ImageCapture` document scanner with Accompanist Permissions (`CAMERA`), alignment reticle, flash modes, tap-to-focus, lens switch, and Gallery fallback (`BackHandler` wired). |
-| `ui/VaultScreen.kt` | Search bar, smart date banner (`DD/MM` vs `MM/DD` toggle + clear + Day PDF export), category filter chips, metrics strip, document list. |
-| `ui/DateLookupScreen.kt` | Boss Date Lookup: typed date jump, quick active-date pills, interactive monthly calendar with document indicators, Export Day PDF button. |
-| `ui/ScanReviewScreen.kt` | Animated OCR scan overlay, retry/manual fallback on error, editable fields & dual-date inputs, Save & Generate Searchable PDF CTA (`BackHandler` wired). |
-| `ui/DocumentDetailScreen.kt` | Pinch-to-zoom scan viewer, Open/Share/Save PDF actions, metadata & extracted fields, in-document highlighted OCR search + Copy, Edit Metadata sheet, Delete dialog (`BackHandler` wired). |
-
----
-
-## 5. Build & Test Commands
-
-> Note: This project uses Gradle `9.3.1` (`gradle/wrapper/gradle-wrapper.properties`) and AGP `9.1.1`. If running without a `gradlew` script, invoke `gradle` directly.
-
-```bash
-# 1. Restore debug keystore (required once before building)
-base64 -d debug.keystore.base64 > debug.keystore
-
-# 2. Build debug APK (output: app/build/outputs/apk/debug/app-debug.apk)
-gradle :app:assembleDebug
-
-# 3. Run JVM unit & Robolectric tests
-gradle :app:testDebugUnitTest
-
-# 4. Run Firestore security rules tests against local emulator
-firebase emulators:exec --only firestore "node --test firestore.test.js"
+```text
+app/src/main/java/
+├── com/example/
+│   ├── MainActivity.kt              # Launches DocFolioApp, triggers AppUpdateManager check
+│   ├── data/
+│   │   ├── DocumentRepository.kt    # Shared /company_documents collection real-time sync & CRUD
+│   │   ├── GeminiOcrService.kt      # Optional Firebase AI Logic structured extraction
+│   │   └── local/                   # Room SQLite database (offline cache)
+│   ├── firebase/
+│   │   ├── AppCheckSetup.kt         # Firebase App Check config
+│   │   ├── AuthHelper.kt            # Silent/anonymous auth provider
+│   │   └── FirestoreErrorHandler.kt # Error mapping & diagnostics
+│   ├── model/
+│   │   └── DocumentModels.kt        # ScannedDocument, DocumentCategory, OCR fields
+│   ├── ui/
+│   │   ├── DocFolioApp.kt           # Top-level scaffold, navigation, update notification dialog
+│   │   ├── VaultScreen.kt           # Search bar, category filters, document cards
+│   │   ├── DateLookupScreen.kt      # Calendar view, active day indicators, daily report PDF export
+│   │   ├── ScanReviewScreen.kt      # Fast photo preview, optional AI button, 1-click Save
+│   │   ├── DocumentDetailScreen.kt  # Full-screen pinch-to-zoom photo, PDF actions, OCR text
+│   │   └── CameraView.kt            # CameraX viewfinder with flash & grid
+│   └── util/
+│       ├── AppUpdateManager.kt      # In-app APK updater & manifest parser
+│       ├── DateSearchParser.kt      # DD/MM/YYYY date matching engine
+│       ├── ImageStorageHelper.kt    # 800px preview base64 compressor & file manager
+│       └── SearchablePdfGenerator.kt# On-device A4 PDF builder
 ```
 
-### Existing Automated Tests
-- `app/src/test/java/com/example/DocFolioCoreUnitTest.kt` (Robolectric): date parsing (`DD/MM` & `MM/DD` ambiguity, UTC calendar round-trip), vault dual-date & keyword filtering, Gemini OCR JSON normalization, PDF `wrapText` bounds, and OCR highlight matching.
-- `app/src/test/java/com/example/ExampleRobolectricTest.kt`: verifies `app_name` resource (`DocFolio`).
-- `firestore.test.js`: 4 end-to-end Firestore security rule tests (owner CRUD, cross-user denial, unauthenticated denial, invalid payload rejection).
+---
+
+## 4. Build & Environment Instructions (Termux / Linux)
+
+### Local Build on Termux
+```bash
+# Set Android SDK and Termux arm64 aapt2 override
+export ANDROID_HOME=$HOME/android-sdk
+export GRADLE_OPTS="-Xmx3g -Dorg.gradle.workers.max=2 -Dorg.gradle.parallel=false"
+
+# Build debug APK
+gradle :app:assembleDebug
+```
+Output path: `app/build/outputs/apk/debug/app-debug.apk`.
+
+### Run JVM Unit Tests
+```bash
+gradle :app:testDebugUnitTest
+```
+
+### Keystore
+- `debug.keystore` is stored in the repository root.
+- Password: `android`, Alias: `androiddebugkey`.
+- SHA-1 matches `app/google-services.json` so all Google & Firebase services authenticate properly.

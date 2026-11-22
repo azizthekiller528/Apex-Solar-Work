@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">DocFolio</string>
+    <string name="app_name">Apex Solar Work</string>
     <string name="tagline">OCR Document Vault &amp; Date Index</string>
     <string name="sign_in_google">Sign in with Google</string>
     <string name="sign_out">Sign out</string>

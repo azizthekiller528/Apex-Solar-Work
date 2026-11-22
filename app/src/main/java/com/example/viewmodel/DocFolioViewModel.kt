@@ -15,6 +15,8 @@ import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.model.UiState
+import com.example.util.AppUpdateInfo
+import com.example.util.AppUpdateManager
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
 import com.example.util.ParsedDateQuery
@@ -142,6 +144,15 @@ sealed interface FirestoreSearchState {
     data class Error(val message: String) : FirestoreSearchState
 }
 
+sealed interface AppUpdateState {
+    data object Idle : AppUpdateState
+    data object Checking : AppUpdateState
+    data class Available(val info: AppUpdateInfo) : AppUpdateState
+    data class Downloading(val info: AppUpdateInfo, val percent: Int) : AppUpdateState
+    data class ReadyToInstall(val apkFile: File) : AppUpdateState
+    data class Error(val message: String) : AppUpdateState
+}
+
 class DocFolioViewModel(
     private val repository: DocumentRepository,
     private val currentUserId: String,
@@ -209,6 +220,9 @@ class DocFolioViewModel(
     private val ocrService = GeminiOcrService()
     private val _isExtractingWithAi = MutableStateFlow(false)
     val isExtractingWithAi: StateFlow<Boolean> = _isExtractingWithAi.asStateFlow()
+
+    private val _appUpdateState = MutableStateFlow<AppUpdateState>(AppUpdateState.Idle)
+    val appUpdateState: StateFlow<AppUpdateState> = _appUpdateState.asStateFlow()
 
     private val _events = MutableSharedFlow<OneShotEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<OneShotEvent> = _events.asSharedFlow()
@@ -848,6 +862,57 @@ class DocFolioViewModel(
                 _isExportingPdf.value = false
             }
         }
+    }
+
+    fun checkForAppUpdates(currentVersionCode: Long, silent: Boolean = true) {
+        viewModelScope.launch {
+            if (!silent) _appUpdateState.value = AppUpdateState.Checking
+            val result = AppUpdateManager.checkForUpdate(currentVersionCode)
+            result.fold(
+                onSuccess = { info ->
+                    if (info != null) {
+                        _appUpdateState.value = AppUpdateState.Available(info)
+                    } else {
+                        _appUpdateState.value = AppUpdateState.Idle
+                        if (!silent) {
+                            _events.emit(OneShotEvent.ShowMessage("Apex Solar Work is up to date"))
+                        }
+                    }
+                },
+                onFailure = { error ->
+                    _appUpdateState.value = AppUpdateState.Idle
+                    if (!silent) {
+                        _events.emit(OneShotEvent.ShowMessage("Update check: ${error.message}"))
+                    }
+                }
+            )
+        }
+    }
+
+    fun downloadAndInstallUpdate(context: Context, info: AppUpdateInfo) {
+        viewModelScope.launch {
+            _appUpdateState.value = AppUpdateState.Downloading(info, 0)
+            val result = AppUpdateManager.downloadApk(context, info) { percent ->
+                _appUpdateState.value = AppUpdateState.Downloading(info, percent)
+            }
+            result.fold(
+                onSuccess = { apkFile ->
+                    _appUpdateState.value = AppUpdateState.ReadyToInstall(apkFile)
+                    val installResult = AppUpdateManager.installApk(context, apkFile)
+                    installResult.onFailure { err ->
+                        _events.emit(OneShotEvent.ShowMessage("Install launch failed: ${err.message}"))
+                    }
+                },
+                onFailure = { error ->
+                    _appUpdateState.value = AppUpdateState.Error(error.message ?: "Download failed")
+                    _events.emit(OneShotEvent.ShowMessage("Download failed: ${error.message}"))
+                }
+            )
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _appUpdateState.value = AppUpdateState.Idle
     }
 
     companion object {

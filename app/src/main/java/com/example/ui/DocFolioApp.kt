@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,15 +20,21 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
+import com.example.util.AppUpdateManager
+import com.example.viewmodel.AppUpdateState
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -137,6 +144,11 @@ fun DocFolioApp(
     val dateLookupMode by viewModel.dateLookupMode.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
     val isExportingPdf by viewModel.isExportingPdf.collectAsStateWithLifecycle()
+    val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        viewModel.checkForAppUpdates(currentVersionCode = 6L, silent = true)
+    }
 
     var currentTab by remember { mutableStateOf(MainTab.VAULT) }
     var selectedDocId by remember { mutableStateOf<String?>(null) }
@@ -380,6 +392,19 @@ fun DocFolioApp(
                                     onClick = { showAccountMenu = false },
                                     enabled = false
                                 )
+                                DropdownMenuItem(
+                                    text = { Text("Check for Updates") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.SystemUpdate,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        viewModel.checkForAppUpdates(currentVersionCode = 6L, silent = false)
+                                    }
+                                )
                                 if (currentUser != null) {
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.sign_out)) },
@@ -622,5 +647,97 @@ fun DocFolioApp(
                 }
             }
         )
+    }
+
+    when (val state = appUpdateState) {
+        is AppUpdateState.Available -> {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissUpdateDialog,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = { Text("Update Available • v${state.info.versionName}") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("A new version of Apex Solar Work is ready to install.")
+                        if (state.info.releaseNotes.isNotBlank()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = state.info.releaseNotes,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.padding(10.dp)
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { viewModel.downloadAndInstallUpdate(context, state.info) }) {
+                        Text("Update Now")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissUpdateDialog) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
+
+        is AppUpdateState.Downloading -> {
+            AlertDialog(
+                onDismissRequest = { /* Cannot cancel during active download */ },
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                },
+                title = { Text("Downloading Update...") },
+                text = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { state.percent / 100f },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text("${state.percent}%", style = MaterialTheme.typography.labelMedium)
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+
+        is AppUpdateState.ReadyToInstall -> {
+            AlertDialog(
+                onDismissRequest = viewModel::dismissUpdateDialog,
+                title = { Text("Download Complete") },
+                text = { Text("Tap Install to complete updating to the latest version.") },
+                confirmButton = {
+                    Button(onClick = { AppUpdateManager.installApk(context, state.apkFile) }) {
+                        Text("Install")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissUpdateDialog) {
+                        Text("Dismiss")
+                    }
+                }
+            )
+        }
+
+        else -> Unit
     }
 }

@@ -323,8 +323,33 @@ private fun ReviewDraftView(
                 }
             }
 
-            // AI Auto-Fill Action Button
-            Button(
+            // Quick Save info banner
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Photo ready. Confirm date below and tap Save at the bottom.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
+
+            // AI Auto-Fill Action Button (Optional)
+            OutlinedButton(
                 onClick = onAutoFillWithAi,
                 enabled = !isExtractingWithAi && !isSaving,
                 modifier = Modifier
@@ -336,10 +361,10 @@ private fun ReviewDraftView(
                     CircularProgressIndicator(
                         modifier = Modifier.size(18.dp),
                         strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Scanning Document with Gemini AI...")
+                    Text("Scanning with Gemini AI (optional)...")
                 } else {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
@@ -348,7 +373,7 @@ private fun ReviewDraftView(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (draft.ocrFullText.isNotBlank()) "Re-Scan with AI" else "Auto-Fill Fields with AI"
+                        if (draft.ocrFullText.isNotBlank()) "Re-Scan with AI (Optional)" else "Auto-Fill with AI (Optional)"
                     )
                 }
             }

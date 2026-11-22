@@ -24,8 +24,8 @@ object ImageStorageHelper {
     private const val CAPTURES_DIR = "captures"
     private const val THUMBS_DIR = "doc_thumbs"
     private const val MAX_SCAN_EDGE = 1650
-    private const val MAX_PREVIEW_EDGE = 480
-    private const val MAX_PREVIEW_BASE64_LENGTH = 140_000
+    private const val MAX_PREVIEW_EDGE = 800
+    private const val MAX_PREVIEW_BASE64_LENGTH = 250_000
 
     // O(1) in-memory map of cacheKey -> verified File to avoid main-thread disk checks and scroll flicker
     private val thumbnailFileIndex = ConcurrentHashMap<String, File>()

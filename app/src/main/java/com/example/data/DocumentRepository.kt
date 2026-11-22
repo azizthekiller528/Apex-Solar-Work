@@ -274,7 +274,7 @@ class DocumentRepository(
                 "ocrFullText" to doc.ocrFullText.trim().take(50000),
                 "localImageFileName" to doc.localImageFileName.trim().take(200),
                 "localPdfFileName" to doc.localPdfFileName.trim().take(200),
-                "previewBase64" to doc.previewBase64.take(155000),
+                "previewBase64" to doc.previewBase64.take(280000),
                 "pageCount" to doc.pageCount.coerceIn(1L, 50L),
                 "starred" to doc.starred,
                 "createdAt" to FieldValue.serverTimestamp(),

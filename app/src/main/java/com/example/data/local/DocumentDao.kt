@@ -10,13 +10,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DocumentDao {
 
-    @Query("SELECT * FROM documents WHERE userId = :userId ORDER BY filedDateIso DESC, updatedAtMillis DESC")
-    fun observeDocumentsForUser(userId: String): Flow<List<DocumentEntity>>
+    @Query("SELECT * FROM documents WHERE (:userId = '' OR :userId = :userId) ORDER BY filedDateIso DESC, updatedAtMillis DESC")
+    fun observeDocumentsForUser(userId: String = ""): Flow<List<DocumentEntity>>
+
+    @Query("SELECT COUNT(*) FROM documents")
+    suspend fun getDocumentCount(): Int
 
     @Query(
         """
         SELECT * FROM documents
-        WHERE userId = :userId AND (filedDateIso = :dateIso OR documentDateIso = :dateIso)
+        WHERE (:userId = '' OR :userId = :userId) AND (filedDateIso = :dateIso OR documentDateIso = :dateIso)
         ORDER BY updatedAtMillis DESC
         """
     )
@@ -25,12 +28,12 @@ interface DocumentDao {
     @Query(
         """
         SELECT * FROM documents
-        WHERE userId = :userId
+        WHERE (:userId = '' OR :userId = :userId)
           AND (
-              ocrContent LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
-              OR title LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
-              OR fileName LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
-          )
+            ocrContent LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
+            OR title LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
+            OR fileName LIKE '%' || :query || '%' ESCAPE '\' COLLATE NOCASE
+        )
         ORDER BY filedDateIso DESC, updatedAtMillis DESC
         """
     )
@@ -44,20 +47,20 @@ interface DocumentDao {
     @Query(
         """
         SELECT * FROM documents
-        WHERE userId = :userId
+        WHERE (:userId = '' OR :userId = :userId)
           AND (
-              :escapedKeyword = ''
-              OR title LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR fileName LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR referenceNumber LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR organization LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR contractorOrParty LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR summary LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR extractedFieldsText LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR ocrContent LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR filedDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-              OR documentDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
-          )
+            :escapedKeyword = ''
+            OR title LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR fileName LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR referenceNumber LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR organization LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR contractorOrParty LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR summary LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR extractedFieldsText LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR ocrContent LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR filedDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+            OR documentDateIso LIKE '%' || :escapedKeyword || '%' ESCAPE '\' COLLATE NOCASE
+        )
           AND (
               :category IS NULL
               OR category = :category
@@ -122,9 +125,7 @@ interface DocumentDao {
 
     @Transaction
     suspend fun replaceUserCache(userId: String, documents: List<DocumentEntity>) {
-        if (documents.isEmpty()) {
-            clearForUser(userId)
-        } else {
+        if (documents.isNotEmpty()) {
             upsertDocuments(documents)
             deleteNotInForUser(userId, documents.map { it.id })
         }

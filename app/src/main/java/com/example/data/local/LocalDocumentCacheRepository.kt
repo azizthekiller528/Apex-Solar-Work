@@ -1,10 +1,15 @@
 package com.example.data.local
 
+import android.content.Context
+import android.util.Log
 import com.example.model.DateMatchMode
 import com.example.model.ScannedDocument
+import com.example.util.ImageStorageHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import java.io.File
 
 /**
  * Repository abstracting Room SQLite metadata cache operations.
@@ -93,6 +98,72 @@ class LocalDocumentCacheRepository(
                     else -> append(ch)
                 }
             }
+        }
+    }
+
+    suspend fun seedFromAssetsIfEmpty(context: Context, userId: String = "apex_team") = withContext(Dispatchers.IO) {
+        try {
+            val count = documentDao.getDocumentCount()
+            if (count > 0) return@withContext
+
+            val jsonString = context.assets.open("seed_documents.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            val docsDir = ImageStorageHelper.getDocsDirectory(context)
+            val entities = mutableListOf<DocumentEntity>()
+
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                val docId = obj.getString("id")
+                val fileName = "${docId}.jpg"
+                val destFile = File(docsDir, fileName)
+
+                if (!destFile.exists() || destFile.length() == 0L) {
+                    try {
+                        context.assets.open("seed_photos/$fileName").use { input ->
+                            destFile.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("LocalDocumentCache", "Could not copy seed photo for $fileName: ${e.message}")
+                    }
+                }
+
+                val extractedList = mutableListOf<String>()
+                val extArr = obj.optJSONArray("extractedFields")
+                if (extArr != null) {
+                    for (j in 0 until extArr.length()) {
+                        extractedList.add(extArr.getString(j))
+                    }
+                }
+
+                entities.add(
+                    DocumentEntity(
+                        id = docId,
+                        userId = userId,
+                        fileName = fileName,
+                        title = obj.optString("title", "Document"),
+                        category = obj.optString("category", "MATERIAL_SLIP"),
+                        documentDateIso = obj.optString("documentDateIso", ""),
+                        filedDateIso = obj.optString("filedDateIso", ""),
+                        referenceNumber = obj.optString("referenceNumber", ""),
+                        organization = obj.optString("organization", ""),
+                        contractorOrParty = obj.optString("contractorOrParty", ""),
+                        summary = obj.optString("summary", ""),
+                        extractedFieldsText = extractedList.joinToString("\n"),
+                        localImagePath = destFile.absolutePath,
+                        localPdfPath = "",
+                        ocrContent = extractedList.joinToString("\n") + "\n" + obj.optString("summary", ""),
+                        updatedAtMillis = System.currentTimeMillis()
+                    )
+                )
+            }
+            if (entities.isNotEmpty()) {
+                documentDao.upsertDocuments(entities)
+                Log.i("LocalDocumentCache", "Successfully seeded ${entities.size} documents from assets.")
+            }
+        } catch (e: Exception) {
+            Log.e("LocalDocumentCache", "Failed to seed documents from assets: ${e.message}", e)
         }
     }
 }

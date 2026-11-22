@@ -11,6 +11,7 @@ import com.example.data.GeminiOcrService
 import com.example.data.MediaRelayService
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
+import com.example.data.local.toScannedDocument
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
@@ -160,10 +161,21 @@ class DocFolioViewModel(
     private val docsDirPath: String = ""
 ) : ViewModel() {
 
-    val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
+    private val localDocsFlow: Flow<List<ScannedDocument>> =
+        (localCache?.observeCachedDocuments(currentUserId) ?: emptyFlow())
+            .map { list -> list.map { it.toScannedDocument() } }
+            .catch { error ->
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Local Room cache read warning: ${error.message}")
+                emit(emptyList())
+            }
+            .onStart { emit(emptyList()) }
+
+    private val cloudDocsFlow: Flow<List<ScannedDocument>?> =
         repository.observeDocuments(currentUserId)
+            .map<List<ScannedDocument>, List<ScannedDocument>?> { it }
             .onEach { docs ->
-                if (localCache != null) {
+                if (localCache != null && !docs.isNullOrEmpty()) {
                     try {
                         localCache.syncFromCloud(currentUserId, docs, docsDirPath)
                     } catch (e: CancellationException) {
@@ -173,21 +185,28 @@ class DocFolioViewModel(
                     }
                 }
             }
-            .map<List<ScannedDocument>, UiState<List<ScannedDocument>>> { UiState.Success(it) }
             .catch { error ->
-                val firestoreError = generateSequence(error) { it.cause }
-                    .filterIsInstance<FirebaseFirestoreException>()
-                    .firstOrNull()
-                if (firestoreError == null && error is CancellationException) throw error
-                val rootError = firestoreError ?: error
-                Log.w(TAG, "Error observing documents", rootError)
-                emit(UiState.Error(rootError.message ?: "Failed to load documents"))
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Cloud Firestore observe warning: ${error.message}")
+                emit(null)
             }
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000L),
-                initialValue = UiState.Loading
-            )
+            .onStart { emit(null) }
+
+    val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
+        combine(localDocsFlow, cloudDocsFlow) { localDocs, cloudDocs ->
+            val docs = when {
+                !cloudDocs.isNullOrEmpty() -> cloudDocs
+                localDocs.isNotEmpty() -> localDocs
+                cloudDocs != null -> emptyList()
+                else -> emptyList()
+            }
+            UiState.Success(docs)
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000L),
+            initialValue = UiState.Loading
+        )
 
     val cachedLocalDocuments: StateFlow<List<DocumentEntity>> =
         (localCache?.observeCachedDocuments(currentUserId) ?: emptyFlow())
@@ -322,17 +341,13 @@ class DocFolioViewModel(
         combine(
             documentsState,
             _filterState,
-            roomFilteredDocuments,
             firestoreSearchState
-        ) { state, filter, roomMatches, cloudSearch ->
+        ) { state, filter, cloudSearch ->
             val docs = (state as? UiState.Success)?.data ?: emptyList()
             if (!filter.hasAnyActiveFilter) {
                 docs
-            } else if (cloudSearch is FirestoreSearchState.Success && cloudSearch.filter == filter) {
+            } else if (cloudSearch is FirestoreSearchState.Success && cloudSearch.filter == filter && cloudSearch.documents.isNotEmpty()) {
                 cloudSearch.documents
-            } else if (roomMatches != null && docs.isNotEmpty()) {
-                val matchedIds = roomMatches.mapTo(HashSet(roomMatches.size)) { it.id }
-                docs.filter { it.id in matchedIds }
             } else {
                 applyVaultFilter(docs, filter)
             }

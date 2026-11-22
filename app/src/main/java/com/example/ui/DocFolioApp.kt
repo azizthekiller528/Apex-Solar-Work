@@ -150,6 +150,13 @@ fun DocFolioApp(
         viewModel.checkForAppUpdates(currentVersionCode = 6L, silent = true)
     }
 
+    LaunchedEffect(effectiveUid) {
+        withContext(Dispatchers.IO) {
+            val localDb = DocFolioDatabase.getInstance(context)
+            LocalDocumentCacheRepository(localDb.documentDao()).seedFromAssetsIfEmpty(context, effectiveUid)
+        }
+    }
+
     var currentTab by remember { mutableStateOf(MainTab.VAULT) }
     var selectedDocId by remember { mutableStateOf<String?>(null) }
     var showScanSourceSheet by remember { mutableStateOf(false) }

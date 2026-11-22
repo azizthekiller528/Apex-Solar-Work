@@ -4,7 +4,9 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.example.model.ScannedDocument
+import com.google.firebase.Timestamp
 import java.io.File
+import java.util.Date
 
 /**
  * Local Room SQLite cache entity storing scanned document metadata
@@ -71,5 +73,39 @@ fun ScannedDocument.toDocumentEntity(docsDirPath: String): DocumentEntity {
         localPdfPath = resolvedPdfPath,
         ocrContent = ocrFullText,
         updatedAtMillis = updatedAt?.toDate()?.time ?: System.currentTimeMillis()
+    )
+}
+
+fun DocumentEntity.toScannedDocument(): ScannedDocument {
+    val extractedList = if (extractedFieldsText.isNotBlank()) {
+        extractedFieldsText.split("\n").filter { it.isNotBlank() }
+    } else {
+        emptyList()
+    }
+    val imgFile = File(localImagePath)
+    val pdfFile = File(localPdfPath)
+    val resolvedImageName = if (localImagePath.isNotBlank()) imgFile.name else fileName
+    val resolvedPdfName = if (localPdfPath.isNotBlank()) pdfFile.name else ""
+
+    return ScannedDocument(
+        id = id,
+        userId = userId,
+        title = title,
+        category = category,
+        documentDateIso = documentDateIso,
+        filedDateIso = filedDateIso,
+        referenceNumber = referenceNumber,
+        organization = organization,
+        contractorOrParty = contractorOrParty,
+        summary = summary,
+        extractedFields = extractedList,
+        ocrFullText = ocrContent,
+        localImageFileName = resolvedImageName,
+        localPdfFileName = resolvedPdfName,
+        previewBase64 = "",
+        pageCount = 1L,
+        starred = false,
+        createdAt = Timestamp(Date(updatedAtMillis)),
+        updatedAt = Timestamp(Date(updatedAtMillis))
     )
 }

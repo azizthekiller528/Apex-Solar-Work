@@ -8,9 +8,19 @@ Designed specifically for solar field teams, site engineers, supervisors, and ma
 
 ## What's New in v1.5
 
+- **Self-Seeding Offline Archive (Out-of-the-Box 35 Documents)**:
+  - All 35 original site documents and full-resolution photos are pre-packaged into APK assets (`assets/seed_photos/` and `assets/seed_documents.json`).
+  - On first launch on any device (e.g. boss's phone), the app automatically extracts photos to local storage and populates Room SQLite.
+  - Zero initial internet connection or cloud login required to view documents and photos.
+- **Robust Category & Keyword Filtering**:
+  - Filter chips (`Material Slip`, `Challan`, `Inspection`, `Invoice`, `Site Report`) filter instantly from local cache.
+  - Dual-engine fallback: if cloud Firestore is empty or unreachable, local in-memory filtering takes over so chips never show "No matching documents" for existing slips.
+  - Room DAO queries company-wide project documents without being restricted by individual Google account UIDs.
+- **Zero Lossy Image Compression**:
+  - Original photos stored byte-for-byte in device storage and backed up to the private Telegram channel / Oracle VM relay.
 - **Direct Shared Company Vault (Zero Login Silos)**:
   - Removed mandatory individual Google sign-in gates.
-  - Anyone who downloads and opens the app immediately accesses the shared `company_documents` Firestore archive.
+  - Anyone who downloads and opens the app immediately accesses the shared `company_documents` archive.
   - Real-time synchronization across all team members and management devices.
 - **Fast 1-Second Save Flow**:
   - AI auto-fill is now **optional** (`Auto-Fill with AI (Optional)`).
@@ -25,6 +35,39 @@ Designed specifically for solar field teams, site engineers, supervisors, and ma
 - **In-App Auto-Updater**:
   - Background startup checks via Oracle VM relay manifest (`https://docfolio.130.210.30.151.sslip.io/...`).
   - Automatically notifies users when a new APK version is available and downloads/installs directly on-device without manual APK file transfers.
+
+---
+
+## 35 Master Seed Documents Breakdown
+
+| Category | Filter Chip | Count | Details |
+| :--- | :--- | :--- | :--- |
+| `DELIVERY_CHALLAN` | **Challan** | 17 | Gate Passes (Kalpataru / Apex Solar) for modules, structures, DC cables |
+| `MATERIAL_SLIP` | **Material Slip** | 12 | Site requisition slips (slips #13703, #13726, #13745, #6717, etc.) |
+| `INVOICE_RECEIPT` | **Invoice** | 4 | Invoices & delivery receipts for solar hardware & civil supplies |
+| `INSPECTION_PROTOCOL`| **Inspection** | 1 | Earthing resistance & PV inspection report (PV Power Tech) |
+| `SITE_REPORT` | **Site Report** | 1 | Site work progress log |
+| **Total** | **All (35)** | **35** | Complete field archive pre-loaded into APK |
+
+---
+
+## Architecture & Data Flow
+
+```text
+[ APK Assets: seed_photos/ & seed_documents.json ]
+                      │ (First launch on any phone)
+                      ▼
+[ Local Cache: Room SQLite (DocumentDao) & files/docfolio/ ]
+                      ▲
+                      │ (Local-first reactive Flow)
+[ DocFolioViewModel.kt: localDocsFlow + cloudDocsFlow ]
+                      │
+                      ▼
+[ Vault Filter: Local in-memory fallback (Instant Category & Date Search) ]
+                      │
+                      ▼
+[ VaultScreen UI: All (35), Material Slip (12), Challan (17), Inspection (1)... ]
+```
 
 ---
 

@@ -212,4 +212,11 @@ class DocFolioPureJvmTest {
         val ocrDoc = manualDoc.copy(ocrFullText = "Raw OCR scanned text from camera")
         assertEquals("Raw OCR scanned text from camera", SearchablePdfGenerator.buildSearchableTranscript(ocrDoc))
     }
+
+    @Test
+    fun companyVaultAndRelayConstants_areConfiguredForPublicMultiDeviceSync() {
+        assertEquals("company_documents", DocumentRepository.COMPANY_COLLECTION_NAME)
+        assertEquals("company_documents", DocumentRepository.COMPANY_DOCS_PATH)
+        assertEquals("docfolio_secret_test_key_99812", MediaRelayService.RELAY_INTERNAL_SECRET)
+    }
 }

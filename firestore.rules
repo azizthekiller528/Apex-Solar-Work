@@ -1,5 +1,38 @@
 rules_version = '2';
 
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: company_documents
+// Document ID: docId (alphanumeric, 1-128 chars, matches ^[a-zA-Z0-9_\-]+$)
+// Fields:
+//   - userId: string (required, 1-128 chars) - app/device/team identifier (e.g. 'apex_team', 'field_scanner')
+//   - title: string (required, 1-200 chars) - slip/document title
+//   - category: string (required, enum) - MATERIAL_SLIP, INSPECTION_PROTOCOL, DELIVERY_CHALLAN, INVOICE_RECEIPT, SITE_REPORT, OTHER
+//   - documentDateIso: string (required, 0 or 10 chars, YYYY-MM-DD or empty) - date on document
+//   - filedDateIso: string (required, 10 chars, YYYY-MM-DD) - date filed
+//   - referenceNumber: string (required, 0-120 chars) - ref/tracking number
+//   - organization: string (required, 0-200 chars) - issuing organization/client
+//   - contractorOrParty: string (required, 0-200 chars) - contractor or counter-party
+//   - summary: string (required, 0-1000 chars) - OCR/AI summary
+//   - extractedFields: list (required, <= 30 items, string elements <= 300 chars) - key extracted metadata
+//   - ocrFullText: string (required, 0-50000 chars) - raw OCR text
+//   - localImageFileName: string (required, 0-200 chars) - local image file name
+//   - localPdfFileName: string (required, 0-200 chars) - local PDF file name
+//   - previewBase64: string (required, 0-160000 chars) - base64 preview thumbnail
+//   - pageCount: int (required, 1-50) - number of scanned pages
+//   - starred: bool (required) - bookmark flag
+//   - createdAt: timestamp (required, immutable, <= request.time) - creation timestamp
+//   - updatedAt: timestamp (required, <= request.time) - last update timestamp
+//
+// Collection: users/{userId}/documents
+// Document ID: docId (alphanumeric, 1-128 chars)
+// Fields:
+//   - Same schema as company_documents, but strictly scoped to authenticated owner (userId == request.auth.uid)
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Global default-deny safety net
@@ -72,7 +105,7 @@ service cloud.firestore {
     }
 
     function isValidDocument(data) {
-      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 && data.userId == request.auth.uid &&
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
              data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
              isValidCategory(data.category) &&
              isValidOptionalIsoDate(data.documentDateIso) &&
@@ -126,6 +159,26 @@ service cloud.firestore {
       ]);
     }
 
+    // Shared Company Vault collection for collaborative multi-device usage without Google Auth gating
+    match /company_documents/{docId} {
+      allow get: if isValidId(docId);
+      allow list: if true;
+
+      allow create: if isValidId(docId) &&
+                       hasExactDocumentKeys(incoming()) &&
+                       isValidDocument(incoming());
+
+      allow update: if isValidId(docId) &&
+                       isValidDocument(incoming()) &&
+                       hasExactDocumentKeys(incoming()) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (isEditDocumentAction() || isToggleStarAction() || isUpdateLocalFilesAction());
+
+      allow delete: if isValidId(docId);
+    }
+
+    // Backward-compatible user document silos for authenticated users
     match /users/{userId}/documents/{docId} {
       allow get: if isOwner(userId) && isValidId(userId) && isValidId(docId);
       allow list: if isOwner(userId);
@@ -142,6 +195,7 @@ service cloud.firestore {
                        isValidId(docId) &&
                        isValidDocument(incoming()) &&
                        hasExactDocumentKeys(incoming()) &&
+                       incoming().userId == userId &&
                        incoming().userId == existing().userId &&
                        incoming().createdAt == existing().createdAt &&
                        (isEditDocumentAction() || isToggleStarAction() || isUpdateLocalFilesAction());

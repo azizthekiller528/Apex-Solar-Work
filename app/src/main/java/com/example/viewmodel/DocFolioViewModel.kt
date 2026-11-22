@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.DocumentRepository
+import com.example.data.GeminiOcrService
 import com.example.data.MediaRelayService
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
@@ -22,7 +23,9 @@ import com.example.util.SearchablePdfGenerator
 import com.example.util.ThumbnailImageLoader
 import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -202,6 +205,10 @@ class DocFolioViewModel(
 
     private val _isExportingPdf = MutableStateFlow(false)
     val isExportingPdf: StateFlow<Boolean> = _isExportingPdf.asStateFlow()
+
+    private val ocrService = GeminiOcrService()
+    private val _isExtractingWithAi = MutableStateFlow(false)
+    val isExtractingWithAi: StateFlow<Boolean> = _isExtractingWithAi.asStateFlow()
 
     private val _events = MutableSharedFlow<OneShotEvent>(extraBufferCapacity = 8)
     val events: SharedFlow<OneShotEvent> = _events.asSharedFlow()
@@ -499,6 +506,64 @@ class DocFolioViewModel(
         }
     }
 
+    fun checkForDuplicate(draft: ScanDraft): ScannedDocument? {
+        val existingDocs = (documentsState.value as? UiState.Success)?.data ?: return null
+        val draftRef = draft.referenceNumber.trim()
+        val draftDocDate = DateSearchParser.normalizeToIsoOrEmpty(draft.documentDateIso)
+        val draftTitle = draft.title.trim()
+
+        return existingDocs.firstOrNull { doc ->
+            val refMatch = draftRef.isNotBlank() &&
+                doc.referenceNumber.isNotBlank() &&
+                doc.referenceNumber.equals(draftRef, ignoreCase = true) &&
+                draftDocDate.isNotBlank() &&
+                doc.documentDateIso == draftDocDate
+
+            val titleRefMatch = draftRef.isNotBlank() &&
+                doc.referenceNumber.isNotBlank() &&
+                doc.referenceNumber.equals(draftRef, ignoreCase = true) &&
+                doc.title.equals(draftTitle, ignoreCase = true)
+
+            refMatch || titleRefMatch
+        }
+    }
+
+    fun runAiAutoFillOnCurrentDraft() {
+        val current = _scanState.value
+        if (current !is ScanFlowState.Review || current.isSaving || _isExtractingWithAi.value) return
+        val draft = current.draft
+
+        viewModelScope.launch {
+            _isExtractingWithAi.value = true
+            try {
+                val result = withContext(Dispatchers.Default) {
+                    ocrService.analyzeDocumentPhoto(draft.bitmap)
+                }
+                _scanState.value = current.copy(
+                    draft = draft.copy(
+                        title = result.title.ifBlank { draft.title },
+                        category = result.category,
+                        documentDateIso = if (result.documentDateIso.isNotBlank()) result.documentDateIso else draft.documentDateIso,
+                        referenceNumber = result.referenceNumber.ifBlank { draft.referenceNumber },
+                        organization = result.organization.ifBlank { draft.organization },
+                        contractorOrParty = result.contractorOrParty.ifBlank { draft.contractorOrParty },
+                        summary = result.summary.ifBlank { draft.summary },
+                        extractedFieldsText = if (result.extractedFields.isNotEmpty()) result.extractedFields.joinToString("\n") else draft.extractedFieldsText,
+                        ocrFullText = result.ocrFullText.ifBlank { draft.ocrFullText }
+                    )
+                )
+                _events.emit(OneShotEvent.ShowMessage("AI auto-filled fields from document"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "AI Auto-Fill warning: ${e.message}")
+                _events.emit(OneShotEvent.ShowMessage(e.message ?: "AI Auto-Fill unavailable. Please fill manually."))
+            } finally {
+                _isExtractingWithAi.value = false
+            }
+        }
+    }
+
     fun dismissScanFlow() {
         _scanState.value = ScanFlowState.Idle
     }
@@ -507,6 +572,14 @@ class DocFolioViewModel(
         val current = _scanState.value
         if (current !is ScanFlowState.Review || current.isSaving) return
         val draft = current.draft
+
+        val duplicate = checkForDuplicate(draft)
+        if (duplicate != null) {
+            val refInfo = if (duplicate.referenceNumber.isNotBlank()) "#${duplicate.referenceNumber}" else duplicate.title
+            val dateInfo = if (duplicate.documentDateIso.isNotBlank()) " from ${DateSearchParser.formatSlashDate(duplicate.documentDateIso)}" else ""
+            _events.tryEmit(OneShotEvent.ShowMessage("Note: Similar document $refInfo$dateInfo already in vault."))
+        }
+
         _scanState.value = current.copy(isSaving = true)
 
         viewModelScope.launch {

@@ -38,31 +38,27 @@ class DocumentRepository(
         )
     )
 
-    private fun requireUserId(): String {
-        return auth.currentUser?.uid
-            ?: throw IllegalStateException("User must be signed in with Google before accessing Firestore.")
+    private val companyCollection: CollectionReference
+        get() = db.collection(COMPANY_COLLECTION_NAME)
+
+    fun getEffectiveUserId(): String {
+        return auth.currentUser?.uid ?: "apex_team"
     }
 
-    fun generateNewDocumentId(userId: String): String {
-        return db.collection("users").document(userId).collection("documents").document().id
+    fun generateNewDocumentId(userId: String = "apex_team"): String {
+        return companyCollection.document().id
     }
 
-    fun observeDocuments(userId: String): Flow<List<ScannedDocument>> = flow {
-        require(userId.isNotBlank()) { "User ID must not be blank." }
-        val path = "users/$userId/documents"
+    fun observeDocuments(userId: String = "apex_team"): Flow<List<ScannedDocument>> = flow {
+        val path = COMPANY_DOCS_PATH
         emitAll(
-            db.collection("users")
-                .document(userId)
-                .collection("documents")
+            companyCollection
                 .snapshots()
                 .map { snapshot ->
                     snapshot.toObjects(
                         ScannedDocument::class.java,
                         DocumentSnapshot.ServerTimestampBehavior.ESTIMATE
-                    ).sortedWith(
-                        compareByDescending<ScannedDocument> { it.filedDateIso }
-                            .thenByDescending { it.createdAt?.seconds ?: 0L }
-                    )
+                    ).sortedWith(DOCUMENT_SORT_ORDER)
                 }
                 .catch { error ->
                     val firestoreError = generateSequence(error) { it.cause }
@@ -70,7 +66,7 @@ class DocumentRepository(
                         .firstOrNull()
                     if (firestoreError == null && error is CancellationException) throw error
                     val exceptionToLog = firestoreError ?: (error as? Exception)
-                    if (exceptionToLog != null && auth.currentUser?.uid == userId) {
+                    if (exceptionToLog != null) {
                         handleFirestoreError(exceptionToLog, OperationType.LIST, path)
                     }
                     throw error
@@ -88,16 +84,15 @@ class DocumentRepository(
      * and deduplicates matching documents by ID.
      */
     fun queryDocumentsByKeywordOrDateRange(
-        userId: String,
+        userId: String = "apex_team",
         keyword: String = "",
         startDateIso: String? = null,
         endDateIso: String? = null,
         category: DocumentCategory? = null,
         dateMatchMode: DateMatchMode = DateMatchMode.EITHER
     ): Flow<List<ScannedDocument>> = flow {
-        require(userId.isNotBlank()) { "User ID must not be blank." }
-        val path = "users/$userId/documents"
-        val collection = db.collection("users").document(userId).collection("documents")
+        val path = COMPANY_DOCS_PATH
+        val collection = companyCollection
         val (orderedStart, orderedEnd) = normalizeDateRangeBounds(startDateIso, endDateIso)
         val hasDateFilter = orderedStart != null || orderedEnd != null
         val normalizedKeyword = keyword.trim().lowercase(Locale.US)
@@ -242,9 +237,10 @@ class DocumentRepository(
     }
 
     suspend fun createDocument(docId: String, doc: ScannedDocument): Result<String> {
-        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/documents/$docId"
+        val docRef = companyCollection.document(docId)
+        val docPath = docRef.path
         return try {
-            val uid = requireUserId()
+            val uid = auth.currentUser?.uid ?: doc.userId.ifBlank { "apex_team" }
             require(docId.isNotBlank() && docId.matches(ID_REGEX)) { "Invalid document ID." }
             val sanitizedTitle = doc.title.trim().ifBlank { "Scanned Document" }.take(200)
             val sanitizedFiledDate = if (DateSearchParser.isValidIsoDate(doc.filedDateIso)) {
@@ -262,9 +258,6 @@ class DocumentRepository(
                 .map { it.trim().take(290) }
                 .filter { it.isNotBlank() }
                 .take(30)
-
-            val docRef = db.collection("users").document(uid).collection("documents").document(docId)
-            docPath = docRef.path
 
             // Exact 18-key payload matching firestore.rules (NO 'id' field because @DocumentId is used)
             val payload = mapOf<String, Any>(
@@ -311,9 +304,9 @@ class DocumentRepository(
         ocrFullText: String,
         localPdfFileName: String
     ): Result<Unit> {
-        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/documents/$docId"
+        val docRef = companyCollection.document(docId)
+        val docPath = docRef.path
         return try {
-            val uid = requireUserId()
             require(docId.isNotBlank() && docId.matches(ID_REGEX)) { "Invalid document ID." }
             val safeTitle = title.trim().ifBlank { "Scanned Document" }.take(200)
             val safeFiled = if (DateSearchParser.isValidIsoDate(filedDateIso)) {
@@ -330,9 +323,6 @@ class DocumentRepository(
                 .map { it.trim().take(290) }
                 .filter { it.isNotBlank() }
                 .take(30)
-
-            val docRef = db.collection("users").document(uid).collection("documents").document(docId)
-            docPath = docRef.path
 
             // Matches isEditDocumentAction() in firestore.rules
             docRef.update(
@@ -361,12 +351,10 @@ class DocumentRepository(
     }
 
     suspend fun toggleStarred(docId: String, starred: Boolean): Result<Unit> {
-        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/documents/$docId"
+        val docRef = companyCollection.document(docId)
+        val docPath = docRef.path
         return try {
-            val uid = requireUserId()
             require(docId.isNotBlank() && docId.matches(ID_REGEX)) { "Invalid document ID." }
-            val docRef = db.collection("users").document(uid).collection("documents").document(docId)
-            docPath = docRef.path
 
             // Matches isToggleStarAction() in firestore.rules
             docRef.update(
@@ -385,12 +373,10 @@ class DocumentRepository(
     }
 
     suspend fun deleteDocument(docId: String): Result<Unit> {
-        var docPath = "users/${auth.currentUser?.uid ?: "unauthenticated"}/documents/$docId"
+        val docRef = companyCollection.document(docId)
+        val docPath = docRef.path
         return try {
-            val uid = requireUserId()
             require(docId.isNotBlank() && docId.matches(ID_REGEX)) { "Invalid document ID." }
-            val docRef = db.collection("users").document(uid).collection("documents").document(docId)
-            docPath = docRef.path
             docRef.delete().await()
             Result.success(Unit)
         } catch (e: CancellationException) {
@@ -402,6 +388,8 @@ class DocumentRepository(
     }
 
     companion object {
+        const val COMPANY_COLLECTION_NAME = "company_documents"
+        const val COMPANY_DOCS_PATH = "company_documents"
         private val ID_REGEX = Regex("^[a-zA-Z0-9_\\-]+$")
         private const val QUERY_LIMIT = 500L
         private const val MIN_NON_BLANK_ISO_DATE = "0001-01-01"

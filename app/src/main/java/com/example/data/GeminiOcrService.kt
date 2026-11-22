@@ -63,7 +63,19 @@ class GeminiOcrService {
         )
     }
 
+    private fun scaleDownForOcr(bitmap: Bitmap, maxDim: Int = 1600): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        val maxOriginal = maxOf(width, height)
+        if (maxOriginal <= maxDim) return bitmap
+        val scale = maxDim.toFloat() / maxOriginal
+        val newWidth = (width * scale).toInt().coerceAtLeast(1)
+        val newHeight = (height * scale).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(bitmap, newWidth, newHeight, true)
+    }
+
     suspend fun analyzeDocumentPhoto(bitmap: Bitmap): OcrExtractionResult {
+        val scaledBitmap = scaleDownForOcr(bitmap, 1600)
         val prompt = """
             You are an expert OCR and industrial/office document indexing engine.
             Carefully inspect this document photograph—including BOTH printed form tables AND handwritten pen ink (such as pink carbon Material Requisition & Issue Slips, Solar System Inspection Protocols, delivery challans, invoices, and site checklists).
@@ -75,10 +87,10 @@ class GeminiOcrService {
         """.trimIndent()
 
         try {
-            val response = withTimeout(60_000L) {
+            val response = withTimeout(45_000L) {
                 model.generateContent(
                     content {
-                        image(bitmap)
+                        image(scaledBitmap)
                         text(prompt)
                     }
                 )
@@ -87,13 +99,17 @@ class GeminiOcrService {
                 ?: throw IllegalStateException("OCR engine returned an empty response.")
             return parseExtractionJson(jsonString)
         } catch (e: TimeoutCancellationException) {
-            Log.e(TAG, "Gemini OCR timed out after 60s", e)
-            throw IllegalStateException("OCR scan timed out after 60 seconds. Please check your connection and try again.", e)
+            Log.e(TAG, "Gemini OCR timed out after 45s", e)
+            throw IllegalStateException("AI scan timed out. Please check your connection or edit manually.", e)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Gemini OCR failed", e)
             throw IllegalStateException(e.localizedMessage ?: "Failed to scan document with AI OCR.", e)
+        } finally {
+            if (scaledBitmap !== bitmap && !scaledBitmap.isRecycled) {
+                runCatching { scaledBitmap.recycle() }
+            }
         }
     }
 

@@ -85,6 +85,8 @@ import com.example.viewmodel.ScanFlowState
 @Composable
 fun ScanReviewScreen(
     scanState: ScanFlowState,
+    isExtractingWithAi: Boolean = false,
+    onAutoFillWithAi: () -> Unit = {},
     onUpdateDraft: ((ScanDraft) -> ScanDraft) -> Unit,
     onSaveDocument: () -> Unit,
     onCancel: () -> Unit
@@ -146,6 +148,8 @@ fun ScanReviewScreen(
                     ReviewDraftView(
                         draft = scanState.draft,
                         isSaving = scanState.isSaving,
+                        isExtractingWithAi = isExtractingWithAi,
+                        onAutoFillWithAi = onAutoFillWithAi,
                         onUpdateDraft = onUpdateDraft,
                         onSaveDocument = onSaveDocument
                     )
@@ -235,17 +239,19 @@ private fun ScanErrorView(
 private fun ReviewDraftView(
     draft: ScanDraft,
     isSaving: Boolean,
+    isExtractingWithAi: Boolean = false,
+    onAutoFillWithAi: () -> Unit = {},
     onUpdateDraft: ((ScanDraft) -> ScanDraft) -> Unit,
     onSaveDocument: () -> Unit
 ) {
     // Keep editable date text fields decoupled from ISO normalization so typing never jumps
-    var docDateText by remember(draft.bitmap) {
+    var docDateText by remember(draft.bitmap, draft.documentDateIso) {
         mutableStateOf(
             if (draft.documentDateIso.isNotBlank()) DateSearchParser.formatSlashDate(draft.documentDateIso)
             else ""
         )
     }
-    var filedDateText by remember(draft.bitmap) {
+    var filedDateText by remember(draft.bitmap, draft.filedDateIso) {
         mutableStateOf(DateSearchParser.formatSlashDate(draft.filedDateIso))
     }
     var showDocDatePicker by remember { mutableStateOf(false) }
@@ -314,6 +320,36 @@ private fun ReviewDraftView(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                }
+            }
+
+            // AI Auto-Fill Action Button
+            Button(
+                onClick = onAutoFillWithAi,
+                enabled = !isExtractingWithAi && !isSaving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("btn_ai_auto_fill"),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                if (isExtractingWithAi) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Scanning Document with Gemini AI...")
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (draft.ocrFullText.isNotBlank()) "Re-Scan with AI" else "Auto-Fill Fields with AI"
+                    )
                 }
             }
 

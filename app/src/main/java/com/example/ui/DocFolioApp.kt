@@ -100,16 +100,17 @@ private enum class MainTab(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DocFolioAuthenticatedRoot(
-    currentUser: FirebaseUser
+fun DocFolioApp(
+    currentUser: FirebaseUser? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
     val snackbarHostState = remember { SnackbarHostState() }
 
+    val effectiveUid = currentUser?.uid ?: "apex_team"
     val viewModel: DocFolioViewModel = viewModel(
-        key = currentUser.uid,
+        key = effectiveUid,
         factory = viewModelFactory {
             initializer {
                 val app = checkNotNull(this[APPLICATION_KEY]) {
@@ -120,7 +121,7 @@ fun DocFolioAuthenticatedRoot(
                 val localDb = DocFolioDatabase.getInstance(app)
                 DocFolioViewModel(
                     repository = DocumentRepository(db),
-                    currentUserId = currentUser.uid,
+                    currentUserId = effectiveUid,
                     localCache = LocalDocumentCacheRepository(localDb.documentDao()),
                     docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath
                 )
@@ -237,10 +238,14 @@ fun DocFolioAuthenticatedRoot(
         selectedDocId?.let { id -> allDocs.firstOrNull { it.id == id } }
     }
 
+    val isExtractingWithAi by viewModel.isExtractingWithAi.collectAsStateWithLifecycle()
+
     // Sub-screen 1: Active Scan / OCR Verification Flow
     if (scanState !is ScanFlowState.Idle) {
         ScanReviewScreen(
             scanState = scanState,
+            isExtractingWithAi = isExtractingWithAi,
+            onAutoFillWithAi = viewModel::runAiAutoFillOnCurrentDraft,
             onUpdateDraft = viewModel::updateScanDraft,
             onSaveDocument = { viewModel.saveScannedDocument(context) },
             onCancel = viewModel::dismissScanFlow
@@ -307,8 +312,8 @@ fun DocFolioAuthenticatedRoot(
     // Primary Adaptive Layout (NavigationBar on Compact, NavigationRail on Medium/Expanded)
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val useNavigationRail = maxWidth >= 600.dp
-        val userInitial = (currentUser.displayName ?: currentUser.email ?: "U")
-            .firstOrNull()?.uppercaseChar()?.toString() ?: "U"
+        val userInitial = (currentUser?.displayName ?: currentUser?.email ?: "Apex")
+            .firstOrNull()?.uppercaseChar()?.toString() ?: "A"
 
         Scaffold(
             topBar = {
@@ -362,35 +367,35 @@ fun DocFolioAuthenticatedRoot(
                                     text = {
                                         Column {
                                             Text(
-                                                text = currentUser.displayName ?: "Signed in",
+                                                text = currentUser?.displayName ?: "Apex Solar Vault",
                                                 style = MaterialTheme.typography.titleSmall
                                             )
-                                            if (!currentUser.email.isNullOrBlank()) {
-                                                Text(
-                                                    text = currentUser.email ?: "",
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
+                                            Text(
+                                                text = currentUser?.email ?: "Company Cloud Archive",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
                                         }
                                     },
                                     onClick = { showAccountMenu = false },
                                     enabled = false
                                 )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.sign_out)) },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.Logout,
-                                            contentDescription = null
-                                        )
-                                    },
-                                    onClick = {
-                                        showAccountMenu = false
-                                        showSignOutDialog = true
-                                    },
-                                    modifier = Modifier.testTag("sign_out_menu_item")
-                                )
+                                if (currentUser != null) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sign_out)) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.Logout,
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            showAccountMenu = false
+                                            showSignOutDialog = true
+                                        },
+                                        modifier = Modifier.testTag("sign_out_menu_item")
+                                    )
+                                }
                             }
                         }
                     },

@@ -26,7 +26,7 @@ data class AppUpdateInfo(
 object AppUpdateManager {
     private const val TAG = "ApexAppUpdateManager"
     private const val PRIMARY_MANIFEST_URL = "https://raw.githubusercontent.com/azizthekiller2/New-apk-/main/app-version.json"
-    private const val FALLBACK_MANIFEST_URL = "https://docfolio.130.210.30.151.sslip.io/api/app/version"
+    private const val FALLBACK_MANIFEST_URL = "https://docfolio.130.210.30.151.sslip.io/api/documents/apex_update_manifest/photo?token=docfolio_secret_test_key_99812"
 
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()

@@ -217,7 +217,10 @@ class LocalDocumentCacheRepository(
                             existing.extractedFieldsText.contains("COLUM ") ||
                             existing.extractedFieldsText.contains("PLAT:") ||
                             existing.extractedFieldsText.contains("PUERLING") ||
-                            existing.extractedFieldsText.contains("CANECTION"))) {
+                            existing.extractedFieldsText.contains("CANECTION") ||
+                            existing.extractedFieldsText.contains("CONNECTION PLATE: 95.000 EA") ||
+                            existing.extractedFieldsText.contains("CONNECTION PLATE: 95") ||
+                            existing.summary.contains("50 PV Modules"))) {
                         val extractedList = mutableListOf<String>()
                         val extArr = obj.optJSONArray("extractedFields")
                         if (extArr != null) {
@@ -226,12 +229,14 @@ class LocalDocumentCacheRepository(
                             }
                         }
                         val updated = existing.copy(
+                            title = obj.optString("title", existing.title),
+                            summary = obj.optString("summary", existing.summary),
                             extractedFieldsText = extractedList.joinToString("\n"),
                             ocrContent = extractedList.joinToString("\n") + "\n" + obj.optString("summary", ""),
                             updatedAtMillis = System.currentTimeMillis()
                         )
                         documentDao.upsertDocument(updated)
-                        Log.i("LocalDocumentCache", "Corrected OCR typos in cache for doc $docId")
+                        Log.i("LocalDocumentCache", "Corrected OCR typos/quantities in cache for doc $docId")
                     }
                 }
             } catch (_: Exception) {}

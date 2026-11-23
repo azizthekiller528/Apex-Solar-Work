@@ -23,9 +23,12 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import com.example.data.MediaRelayService
+import com.example.data.SiteExpenseRepository
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.StarBorder
@@ -104,6 +107,7 @@ private enum class MainTab(
 ) {
     VAULT(R.string.nav_vault, Icons.Filled.Folder, Icons.Outlined.Folder, "tab_vault"),
     BY_DATE(R.string.nav_by_date, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth, "tab_by_date"),
+    EXPENSES(R.string.nav_expenses, Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong, "tab_expenses"),
     STARRED(R.string.nav_starred, Icons.Filled.Star, Icons.Outlined.StarBorder, "tab_starred")
 }
 
@@ -132,7 +136,8 @@ fun DocFolioApp(
                     repository = DocumentRepository(db),
                     currentUserId = effectiveUid,
                     localCache = LocalDocumentCacheRepository(localDb.documentDao()),
-                    docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath
+                    docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath,
+                    siteExpenseRepository = SiteExpenseRepository(localDb.siteExpenseDao())
                 )
             }
         }
@@ -147,6 +152,9 @@ fun DocFolioApp(
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
     val isExportingPdf by viewModel.isExportingPdf.collectAsStateWithLifecycle()
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
+    val allExpenses by viewModel.allExpenses.collectAsStateWithLifecycle()
+    val allMaterials by viewModel.allMaterials.collectAsStateWithLifecycle()
+    val selectedExpenseDateIso by viewModel.selectedExpenseDateIso.collectAsStateWithLifecycle()
 
     val currentAppVersionCode = remember(context) {
         try {
@@ -367,6 +375,7 @@ fun DocFolioApp(
                                 text = when (currentTab) {
                                     MainTab.VAULT -> "OCR Searchable PDF Archive"
                                     MainTab.BY_DATE -> "Boss Date Register"
+                                    MainTab.EXPENSES -> "Daily Kharcha & Site Stock"
                                     MainTab.STARRED -> "Priority Documents"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
@@ -530,7 +539,7 @@ fun DocFolioApp(
                 }
             },
             floatingActionButton = {
-                if (!useNavigationRail) {
+                if (!useNavigationRail && currentTab != MainTab.EXPENSES) {
                     ExtendedFloatingActionButton(
                         onClick = { showScanSourceSheet = true },
                         icon = {
@@ -644,6 +653,18 @@ fun DocFolioApp(
                             onExportDayPdf = { dateIso, docs ->
                                 viewModel.exportDailyBundlePdf(context, dateIso, docs)
                             }
+                        )
+
+                        MainTab.EXPENSES -> ExpensesScreen(
+                            allExpenses = allExpenses,
+                            allMaterials = allMaterials,
+                            selectedDateIso = selectedExpenseDateIso,
+                            onSelectDate = viewModel::selectExpenseDate,
+                            onAddExpense = viewModel::addExpense,
+                            onDeleteExpense = viewModel::deleteExpense,
+                            onAddMaterial = viewModel::addMaterial,
+                            onDeleteMaterial = viewModel::deleteMaterial,
+                            onShareReport = viewModel::shareWhatsAppReport
                         )
 
                         MainTab.STARRED -> VaultScreen(

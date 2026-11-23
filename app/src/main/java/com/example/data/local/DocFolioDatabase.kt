@@ -6,13 +6,18 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [DocumentEntity::class],
-    version = 3,
+    entities = [
+        DocumentEntity::class,
+        SiteExpenseEntity::class,
+        SiteMaterialRecordEntity::class
+    ],
+    version = 4,
     exportSchema = false
 )
 abstract class DocFolioDatabase : RoomDatabase() {
 
     abstract fun documentDao(): DocumentDao
+    abstract fun siteExpenseDao(): SiteExpenseDao
 
     companion object {
         private const val DATABASE_NAME = "docfolio_local_cache.db"

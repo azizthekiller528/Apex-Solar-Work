@@ -1,6 +1,7 @@
 package com.example.viewmodel
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
@@ -9,9 +10,12 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.DocumentRepository
 import com.example.data.GeminiOcrService
 import com.example.data.MediaRelayService
+import com.example.data.SiteExpenseRepository
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
 import com.example.data.local.toScannedDocument
+import com.example.data.model.SiteExpense
+import com.example.data.model.SiteMaterialRecord
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
@@ -158,7 +162,8 @@ class DocFolioViewModel(
     private val repository: DocumentRepository,
     private val currentUserId: String,
     private val localCache: LocalDocumentCacheRepository? = null,
-    private val docsDirPath: String = ""
+    private val docsDirPath: String = "",
+    private val siteExpenseRepository: SiteExpenseRepository? = null
 ) : ViewModel() {
 
     private val localDocsFlow: Flow<List<ScannedDocument>> =
@@ -247,6 +252,45 @@ class DocFolioViewModel(
     val events: SharedFlow<OneShotEvent> = _events.asSharedFlow()
 
     private val _searchRetryTrigger = MutableStateFlow(0)
+
+    val allExpenses: StateFlow<List<SiteExpense>> =
+        (siteExpenseRepository?.allExpensesFlow() ?: emptyFlow())
+            .catch { error ->
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Site expenses observe error: ${error.message}")
+                emit(emptyList())
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = emptyList()
+            )
+
+    val allMaterials: StateFlow<List<SiteMaterialRecord>> =
+        (siteExpenseRepository?.allMaterialsFlow() ?: emptyFlow())
+            .catch { error ->
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Site materials observe error: ${error.message}")
+                emit(emptyList())
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = emptyList()
+            )
+
+    private val _selectedExpenseDateIso = MutableStateFlow<String>("")
+    val selectedExpenseDateIso: StateFlow<String> = _selectedExpenseDateIso.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            try {
+                siteExpenseRepository?.seedInitialDataIfEmpty()
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to seed initial site expenses: ${e.message}")
+            }
+        }
+    }
 
     @OptIn(FlowPreview::class)
     private val debouncedFilterState: Flow<VaultFilterState> = _filterState
@@ -928,6 +972,84 @@ class DocFolioViewModel(
 
     fun dismissUpdateDialog() {
         _appUpdateState.value = AppUpdateState.Idle
+    }
+
+    fun selectExpenseDate(dateIso: String) {
+        _selectedExpenseDateIso.value = dateIso
+    }
+
+    fun addExpense(expense: SiteExpense) {
+        viewModelScope.launch {
+            try {
+                siteExpenseRepository?.addExpense(expense)
+                _events.emit(OneShotEvent.ShowMessage("Expense added"))
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to add expense: ${e.message}"))
+            }
+        }
+    }
+
+    fun deleteExpense(id: String) {
+        viewModelScope.launch {
+            try {
+                siteExpenseRepository?.deleteExpense(id)
+                _events.emit(OneShotEvent.ShowMessage("Expense deleted"))
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to delete expense: ${e.message}"))
+            }
+        }
+    }
+
+    fun addMaterial(record: SiteMaterialRecord) {
+        viewModelScope.launch {
+            try {
+                siteExpenseRepository?.addMaterial(record)
+                _events.emit(OneShotEvent.ShowMessage("Material record added"))
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to add material: ${e.message}"))
+            }
+        }
+    }
+
+    fun deleteMaterial(id: String) {
+        viewModelScope.launch {
+            try {
+                siteExpenseRepository?.deleteMaterial(id)
+                _events.emit(OneShotEvent.ShowMessage("Material record deleted"))
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to delete material: ${e.message}"))
+            }
+        }
+    }
+
+    fun shareWhatsAppReport(
+        context: Context,
+        dateFormatted: String,
+        expenses: List<SiteExpense>,
+        materials: List<SiteMaterialRecord>
+    ) {
+        val repo = siteExpenseRepository ?: return
+        val text = repo.formatWhatsAppReport(dateFormatted, expenses, materials)
+        try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, text)
+                setPackage("com.whatsapp")
+            }
+            context.startActivity(intent)
+        } catch (_: Exception) {
+            try {
+                val genericIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_TEXT, text)
+                }
+                context.startActivity(Intent.createChooser(genericIntent, "Share Daily Site Report"))
+            } catch (ex: Exception) {
+                viewModelScope.launch {
+                    _events.emit(OneShotEvent.ShowMessage("Could not open share sheet: ${ex.message}"))
+                }
+            }
+        }
     }
 
     companion object {

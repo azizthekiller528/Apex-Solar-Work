@@ -236,4 +236,68 @@ class DocFolioPureJvmTest {
         assertTrue("Should contain PURLIN 5125", text.contains("PURLIN 5125"))
         assertTrue("Should contain CONNECTION PLATE", text.contains("CONNECTION PLATE"))
     }
+
+    @Test
+    fun formatQuantityForDisplay_cleansRawErpDecimalJunkToCleanPieces() {
+        assertEquals("12 pcs", com.example.ui.formatQuantityForDisplay("12.000 EA"))
+        assertEquals("95 pcs", com.example.ui.formatQuantityForDisplay("95.000 EA"))
+        assertEquals("20 pcs", com.example.ui.formatQuantityForDisplay("20.000 EA"))
+        assertEquals("50 pcs", com.example.ui.formatQuantityForDisplay("50.000 EA"))
+        assertEquals("4 pcs", com.example.ui.formatQuantityForDisplay("4.000 EA"))
+        assertEquals("5 pcs", com.example.ui.formatQuantityForDisplay("5.000 EA"))
+        assertEquals("228 pcs", com.example.ui.formatQuantityForDisplay("228.000"))
+        assertEquals("12 pcs", com.example.ui.formatQuantityForDisplay("12"))
+        assertEquals("10 mtr", com.example.ui.formatQuantityForDisplay("10 MTR"))
+        assertEquals("", com.example.ui.formatQuantityForDisplay(""))
+    }
+
+    @Test
+    fun gatePass1000367086_hasAccurateRowQuantitiesAndSummary() {
+        val file = listOf(
+            java.io.File("src/main/assets/seed_documents.json"),
+            java.io.File("app/src/main/assets/seed_documents.json")
+        ).firstOrNull { it.exists() } ?: error("seed_documents.json not found")
+        val text = file.readText()
+        assertTrue("Connection Plate should have 12", text.contains("\"CONNECTION PLATE 140X80: 12.000 EA\""))
+        assertTrue("Anti Theft should have 95", text.contains("\"ANTI THEFT NUT BOLT M16: 95.000 EA\""))
+        assertTrue("Module should have 20", text.contains("\"MODULE 400W: 20.000 EA\""))
+        assertTrue("Nut Bolt M12 should have 50", text.contains("\"NUT BOLT M 12: 50.000 EA\""))
+        assertTrue("DCDB should have 4", text.contains("\"DCDB 1 IN 4 OUT: 4.000 EA\""))
+        assertTrue("Rafter 3350 should have 5", text.contains("\"RAFTER 3350: 5.000 EA\""))
+        assertTrue("Summary should specify 20 PV Modules", text.contains("20 PV Modules"))
+        assertFalse("Summary must not say 50 PV Modules", text.contains("50 PV Modules"))
+    }
+
+    @Test
+    fun siteExpenseRepository_formatsWhatsAppReportCorrectly() {
+        val expenses = listOf(
+            com.example.data.model.SiteExpense("1", "2026-11-17", "Diesel", 1000.0, "Aziz", "", "FUEL"),
+            com.example.data.model.SiteExpense("2", "2026-11-17", "Augr Machine Repair", 100.0, "Nadeem", "", "REPAIR")
+        )
+        val materials = listOf(
+            com.example.data.model.SiteMaterialRecord("m1", "2026-11-17", 1, "J Bolt", "96", "53", "")
+        )
+        val dummyDao = object : com.example.data.local.SiteExpenseDao {
+            override fun getAllExpensesFlow() = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteExpenseEntity>>()
+            override fun getExpensesByDateFlow(dateIso: String) = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteExpenseEntity>>()
+            override fun getAllMaterialsFlow() = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteMaterialRecordEntity>>()
+            override fun getMaterialsByDateFlow(dateIso: String) = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteMaterialRecordEntity>>()
+            override suspend fun insertExpense(expense: com.example.data.local.SiteExpenseEntity) {}
+            override suspend fun insertExpenses(expenses: List<com.example.data.local.SiteExpenseEntity>) {}
+            override suspend fun deleteExpense(id: String) {}
+            override suspend fun insertMaterial(material: com.example.data.local.SiteMaterialRecordEntity) {}
+            override suspend fun insertMaterials(materials: List<com.example.data.local.SiteMaterialRecordEntity>) {}
+            override suspend fun deleteMaterial(id: String) {}
+            override suspend fun getCount() = 0
+            override suspend fun getMaterialCount() = 0
+        }
+        val repo = com.example.data.SiteExpenseRepository(dummyDao)
+        val report = repo.formatWhatsAppReport("17 November 2026", expenses, materials)
+        assertTrue(report.contains("APEX SOLAR WORK - DAILY SITE REPORT"))
+        assertTrue(report.contains("17 November 2026"))
+        assertTrue(report.contains("TOTAL EXPENSE: ₹1100"))
+        assertTrue(report.contains("Paid by Aziz:* ₹1000"))
+        assertTrue(report.contains("Paid by Nadeem:* ₹100"))
+        assertTrue(report.contains("J Bolt* — OUT: 96 | Left in Store: 53"))
+    }
 }

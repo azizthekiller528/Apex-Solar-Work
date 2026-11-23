@@ -6,6 +6,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -595,7 +596,7 @@ fun DocumentDetailScreen(
                                     color = SafetyAmber
                                 )
                                 Text(
-                                    text = "QTY / UNIT",
+                                    text = "QUANTITY",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -629,7 +630,7 @@ fun DocumentDetailScreen(
                                             shape = RoundedCornerShape(8.dp)
                                         ) {
                                             Text(
-                                                text = qty,
+                                                text = formatQuantityForDisplay(qty),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -661,7 +662,7 @@ fun DocumentDetailScreen(
                                             color = VerifiedTeal
                                         )
                                         Text(
-                                            text = totalQty,
+                                            text = formatQuantityForDisplay(totalQty),
                                             style = MaterialTheme.typography.titleMedium,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
@@ -975,6 +976,25 @@ private fun ZoomablePhotoDialog(
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.94f))
                 .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = { tapOffset ->
+                            if (scale > 1.2f) {
+                                scale = 1f
+                                offset = Offset.Zero
+                            } else {
+                                val targetScale = 2.5f
+                                scale = targetScale
+                                val centerX = size.width / 2f
+                                val centerY = size.height / 2f
+                                offset = Offset(
+                                    x = (centerX - tapOffset.x) * (targetScale - 1f),
+                                    y = (centerY - tapOffset.y) * (targetScale - 1f)
+                                )
+                            }
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         val nextScale = (scale * zoom).coerceIn(1f, 5f)
                         scale = nextScale
@@ -1005,7 +1025,7 @@ private fun ZoomablePhotoDialog(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Pinch to zoom",
+                    text = "Double-tap or pinch to zoom",
                     style = MaterialTheme.typography.labelMedium,
                     color = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.padding(start = 8.dp)
@@ -1258,4 +1278,25 @@ internal fun buildHighlightedText(
         }
     }
     return annotated to count
+}
+
+internal fun formatQuantityForDisplay(rawQty: String): String {
+    val trimmed = rawQty.trim()
+    if (trimmed.isEmpty()) return ""
+    val regex = Regex("""^([\d,]+)(?:\.0+)?(?:\.([0-9]+))?\s*([A-Za-z]+)?$""")
+    val match = regex.find(trimmed)
+    if (match != null) {
+        val intPart = match.groupValues[1].replace(",", "")
+        val decPart = match.groupValues[2]
+        val unit = match.groupValues[3].uppercase()
+        val numStr = if (decPart.isNotEmpty()) "$intPart.$decPart" else intPart
+        return when (unit) {
+            "EA", "NOS", "PIECE", "PIECES", "" -> "$numStr pcs"
+            else -> "$numStr ${unit.lowercase()}"
+        }
+    }
+    return trimmed
+        .replace(Regex("""\.000\b"""), "")
+        .replace(Regex("""\bEA\b""", RegexOption.IGNORE_CASE), "pcs")
+        .trim()
 }

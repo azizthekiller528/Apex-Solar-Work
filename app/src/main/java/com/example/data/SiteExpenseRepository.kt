@@ -69,24 +69,24 @@ class SiteExpenseRepository(
             val expenses = parseExpensesFromOcrText(doc.ocrFullText)
             val materials = parseMaterialsFromOcrText(doc.ocrFullText)
 
-            if (expenses.isNotEmpty()) {
+            if (doc.ocrFullText.contains(EXPENSES_DELIMITER_START)) {
                 val validIds = expenses.map { it.id }.filter { it.isNotBlank() }
                 if (validIds.isNotEmpty()) {
                     dao.deleteExpensesNotIn(dateIso, validIds)
+                    dao.insertExpenses(expenses.map { SiteExpenseEntity.fromModel(it) })
                 } else {
                     dao.deleteExpensesForDate(dateIso)
                 }
-                dao.insertExpenses(expenses.map { SiteExpenseEntity.fromModel(it) })
             }
 
-            if (materials.isNotEmpty()) {
+            if (doc.ocrFullText.contains(MATERIALS_DELIMITER_START)) {
                 val validMatIds = materials.map { it.id }.filter { it.isNotBlank() }
                 if (validMatIds.isNotEmpty()) {
                     dao.deleteMaterialsNotIn(dateIso, validMatIds)
+                    dao.insertMaterials(materials.map { SiteMaterialRecordEntity.fromModel(it) })
                 } else {
                     dao.deleteMaterialsForDate(dateIso)
                 }
-                dao.insertMaterials(materials.map { SiteMaterialRecordEntity.fromModel(it) })
             }
         }
     }

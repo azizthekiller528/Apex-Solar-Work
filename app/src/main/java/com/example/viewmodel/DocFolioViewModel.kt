@@ -1110,6 +1110,10 @@ class DocFolioViewModel(
                 val docId = "daily_expenses_${dateIso.replace("-", "_")}"
 
                 if (expenses.isEmpty() && materials.isEmpty()) {
+                    val existing = repository.getDocument(docId).getOrNull()
+                    if (existing != null) {
+                        repository.deleteDocument(docId)
+                    }
                     return@launch
                 }
 

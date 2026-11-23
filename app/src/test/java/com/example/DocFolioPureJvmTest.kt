@@ -461,4 +461,54 @@ class DocFolioPureJvmTest {
         assertNotNull(chip)
         assertTrue(chip.isNotBlank())
     }
+
+    @Test
+    fun siteExpenseRepository_syncFromCloudDocuments_handlesEmptyDeletionsAndReplacements() = kotlinx.coroutines.runBlocking {
+        var deletedDateExpenses = ""
+        var deletedDateMaterials = ""
+        var insertedExpenseCount = 0
+
+        val fakeDao = object : com.example.data.local.SiteExpenseDao {
+            override fun getAllExpensesFlow() = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteExpenseEntity>>()
+            override fun getExpensesByDateFlow(dateIso: String) = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteExpenseEntity>>()
+            override fun getAllMaterialsFlow() = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteMaterialRecordEntity>>()
+            override fun getMaterialsByDateFlow(dateIso: String) = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteMaterialRecordEntity>>()
+            override suspend fun insertExpense(expense: com.example.data.local.SiteExpenseEntity) {}
+            override suspend fun insertExpenses(expenses: List<com.example.data.local.SiteExpenseEntity>) {
+                insertedExpenseCount += expenses.size
+            }
+            override suspend fun insertDefaultExpenses(expenses: List<com.example.data.local.SiteExpenseEntity>) {}
+            override suspend fun deleteExpense(id: String) {}
+            override suspend fun insertMaterial(material: com.example.data.local.SiteMaterialRecordEntity) {}
+            override suspend fun insertMaterials(materials: List<com.example.data.local.SiteMaterialRecordEntity>) {}
+            override suspend fun deleteMaterial(id: String) {}
+            override suspend fun getCount() = 0
+            override suspend fun getMaterialCount() = 0
+            override suspend fun getExpensesByDate(dateIso: String) = emptyList<com.example.data.local.SiteExpenseEntity>()
+            override suspend fun getAllExpenseDates() = emptyList<String>()
+            override suspend fun deleteExpensesForDate(dateIso: String) {
+                deletedDateExpenses = dateIso
+            }
+            override suspend fun deleteExpensesNotIn(dateIso: String, validIds: List<String>) {}
+            override suspend fun getMaterialsByDate(dateIso: String) = emptyList<com.example.data.local.SiteMaterialRecordEntity>()
+            override suspend fun deleteMaterialsForDate(dateIso: String) {
+                deletedDateMaterials = dateIso
+            }
+            override suspend fun deleteMaterialsNotIn(dateIso: String, validIds: List<String>) {}
+        }
+
+        val repo = com.example.data.SiteExpenseRepository(fakeDao)
+
+        // Cloud doc with empty expenses and empty materials
+        val emptyDoc = com.example.model.ScannedDocument(
+            id = "daily_expenses_2026_11_23",
+            documentDateIso = "2026-11-23",
+            ocrFullText = "${com.example.data.SiteExpenseRepository.EXPENSES_DELIMITER_START}\n[]\n${com.example.data.SiteExpenseRepository.MATERIALS_DELIMITER_START}\n[]\n${com.example.data.SiteExpenseRepository.DATA_DELIMITER_END}"
+        )
+
+        repo.syncFromCloudDocuments(listOf(emptyDoc))
+        assertEquals("2026-11-23", deletedDateExpenses)
+        assertEquals("2026-11-23", deletedDateMaterials)
+        assertEquals(0, insertedExpenseCount)
+    }
 }

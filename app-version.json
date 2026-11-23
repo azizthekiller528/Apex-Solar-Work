@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
-  "apkUrl": "https://files.catbox.moe/9yb5er.apk",
-  "sha256": "d58f6898daaf99a986cbc028a65a6f99e6580103e2ae6e57a9b4d45c2a6c7391",
-  "sizeBytes": 46308387,
-  "releaseNotes": "• Android system background download (never aborts when minimized or screen locked)\n• Download progress in notification shade with tap-to-install\n• Clean single Doc date display on all document cards\n• Permanent v1.9 version badge on top bar and account menu\n• Full Expenses & Site Stock tracking with WhatsApp daily report"
+  "versionCode": 11,
+  "versionName": "2.0",
+  "apkUrl": "https://github.com/azizthekiller2/Apex-Solar-Work/releases/download/v2.0/Apex_Solar_Work_v2.0.apk",
+  "sha256": "2f3787bbafc8ec2e8f892426deda2c31fc1aca91a3b81662f1bb8b12963ce21f",
+  "sizeBytes": 46341179,
+  "releaseNotes": "• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai\n• In-dialog date picker and quick 'Today' selector directly in Add Expense / Add Material popups\n• Automatic synchronization of daily site reports to Cloud Firestore Vault\n• Background download manager and device telemetry heartbeat"
 }

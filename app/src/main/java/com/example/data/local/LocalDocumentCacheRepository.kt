@@ -204,6 +204,37 @@ class LocalDocumentCacheRepository(
             if (updatedAny) {
                 ThumbnailImageLoader.clearCache(context)
             }
+
+            // Also refresh metadata/line items from seed_documents.json if typos exist in cache
+            try {
+                val jsonString = context.assets.open("seed_documents.json").bufferedReader().use { it.readText() }
+                val jsonArray = JSONArray(jsonString)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val docId = obj.getString("id")
+                    val existing = documentDao.getById(docId)
+                    if (existing != null && (existing.extractedFieldsText.contains("THETT") ||
+                            existing.extractedFieldsText.contains("COLUM ") ||
+                            existing.extractedFieldsText.contains("PLAT:") ||
+                            existing.extractedFieldsText.contains("PUERLING") ||
+                            existing.extractedFieldsText.contains("CANECTION"))) {
+                        val extractedList = mutableListOf<String>()
+                        val extArr = obj.optJSONArray("extractedFields")
+                        if (extArr != null) {
+                            for (j in 0 until extArr.length()) {
+                                extractedList.add(extArr.getString(j))
+                            }
+                        }
+                        val updated = existing.copy(
+                            extractedFieldsText = extractedList.joinToString("\n"),
+                            ocrContent = extractedList.joinToString("\n") + "\n" + obj.optString("summary", ""),
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
+                        documentDao.upsertDocument(updated)
+                        Log.i("LocalDocumentCache", "Corrected OCR typos in cache for doc $docId")
+                    }
+                }
+            } catch (_: Exception) {}
         } catch (_: Exception) {}
     }
 }

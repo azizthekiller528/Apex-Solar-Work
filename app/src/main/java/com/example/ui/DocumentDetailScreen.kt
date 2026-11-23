@@ -90,6 +90,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -477,33 +478,27 @@ fun DocumentDetailScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            DateInfoBox(
-                                label = "FILED DATE",
-                                primary = DateSearchParser.formatSlashDate(doc.filedDateIso),
-                                secondary = DateSearchParser.formatFriendlyDate(doc.filedDateIso),
-                                accent = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            DateInfoBox(
-                                label = "DOCUMENT DATE",
-                                primary = if (doc.documentDateIso.isNotBlank()) {
-                                    DateSearchParser.formatSlashDate(doc.documentDateIso)
-                                } else {
-                                    "Blank on form"
-                                },
-                                secondary = if (doc.documentDateIso.isNotBlank()) {
-                                    DateSearchParser.formatFriendlyDate(doc.documentDateIso)
-                                } else {
-                                    "Tap Edit to set"
-                                },
-                                accent = VerifiedTeal,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        val effectiveDateIso = doc.documentDateIso.ifBlank { doc.filedDateIso }
+                        val hasDiffFiled = doc.filedDateIso.isNotBlank() &&
+                                doc.documentDateIso.isNotBlank() &&
+                                doc.filedDateIso != doc.documentDateIso
+
+                        DateInfoBox(
+                            label = "DOCUMENT DATE",
+                            primary = if (effectiveDateIso.isNotBlank()) {
+                                DateSearchParser.formatSlashDate(effectiveDateIso)
+                            } else {
+                                "Blank on form"
+                            },
+                            secondary = if (effectiveDateIso.isNotBlank()) {
+                                val friendly = DateSearchParser.formatFriendlyDate(effectiveDateIso)
+                                if (hasDiffFiled) "$friendly • Filed: ${DateSearchParser.formatSlashDate(doc.filedDateIso)}" else friendly
+                            } else {
+                                "Tap Edit to set"
+                            },
+                            accent = VerifiedTeal,
+                            modifier = Modifier.fillMaxWidth()
+                        )
 
                         if (doc.organization.isNotBlank() || doc.contractorOrParty.isNotBlank()) {
                             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -531,8 +526,146 @@ fun DocumentDetailScreen(
                     }
                 }
 
-                // Extracted Fields / Line Items
-                if (doc.extractedFields.isNotEmpty()) {
+                // Structured Line Items & Dispatch Details
+                val (materials, totalQty, dispatchDetails) = remember(doc.extractedFields) {
+                    val dropPattern = Regex("^(Gate\\s*Pass\\s*No|Slip\\s*No|Challan\\s*No|Doc\\s*No|Remarks|Sub\\s*Contractor|Company)\\s*:", RegexOption.IGNORE_CASE)
+                    val datePattern = Regex("^Date\\s*:\\s*\\d", RegexOption.IGNORE_CASE)
+                    val dispatchPattern = Regex("^(Vehicle\\s*No|Outward\\s*No|Inward\\s*No|Sign|Requisition\\s*by|Received\\s*by|To|Dept|Driver|Issue\\s*Type)\\b", RegexOption.IGNORE_CASE)
+                    val totalPattern = Regex("^Total\\s*(Qty|Quantity)\\s*:", RegexOption.IGNORE_CASE)
+
+                    val matList = mutableListOf<Pair<String, String>>()
+                    val dispList = mutableListOf<Pair<String, String>>()
+                    var tot: String? = null
+
+                    for (rawLine in doc.extractedFields) {
+                        val line = rawLine.trim()
+                        if (line.isBlank() || dropPattern.containsMatchIn(line) || datePattern.containsMatchIn(line)) {
+                            continue
+                        }
+                        if (totalPattern.containsMatchIn(line)) {
+                            tot = line.substringAfter(":").trim()
+                        } else if (dispatchPattern.containsMatchIn(line)) {
+                            val parts = line.split(":", limit = 2)
+                            if (parts.size == 2) {
+                                dispList.add(parts[0].trim() to parts[1].trim())
+                            } else {
+                                dispList.add("Detail" to line)
+                            }
+                        } else {
+                            val colonIdx = line.lastIndexOf(':')
+                            if (colonIdx > 0 && colonIdx < line.length - 1) {
+                                val desc = line.substring(0, colonIdx).trim()
+                                val qty = line.substring(colonIdx + 1).trim()
+                                matList.add(desc to qty)
+                            } else {
+                                matList.add(line to "")
+                            }
+                        }
+                    }
+                    Triple(matList, tot, dispList)
+                }
+
+                if (materials.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "MATERIALS & LINE ITEMS (${materials.size})",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SafetyAmber
+                                )
+                                Text(
+                                    text = "QTY / UNIT",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                            materials.forEachIndexed { idx, (desc, qty) ->
+                                if (idx > 0) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = desc,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 12.dp)
+                                    )
+                                    if (qty.isNotBlank()) {
+                                        Surface(
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = qty,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (totalQty != null) {
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                Surface(
+                                    color = VerifiedTeal.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "TOTAL QUANTITY",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = VerifiedTeal
+                                        )
+                                        Text(
+                                            text = totalQty,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (dispatchDetails.isNotEmpty()) {
                     Surface(
                         modifier = Modifier.fillMaxWidth(),
                         color = MaterialTheme.colorScheme.surface,
@@ -544,7 +677,33 @@ fun DocumentDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "EXTRACTED FIELDS & LINE ITEMS (${doc.extractedFields.size})",
+                                text = "TRANSPORT & DISPATCH DETAILS",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            dispatchDetails.forEachIndexed { idx, (label, value) ->
+                                if (idx > 0) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                                }
+                                KeyValueRow(label, value)
+                            }
+                        }
+                    }
+                }
+
+                if (materials.isEmpty() && dispatchDetails.isEmpty() && doc.extractedFields.isNotEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface,
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "EXTRACTED FIELDS (${doc.extractedFields.size})",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = SafetyAmber
                             )
@@ -736,25 +895,31 @@ private fun DateInfoBox(
         border = BorderStroke(1.dp, accent.copy(alpha = 0.25f))
     ) {
         Column(
-            modifier = Modifier.padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 color = accent
             )
-            Text(
-                text = primary,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = secondary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = primary,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = secondary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
@@ -886,12 +1051,8 @@ private fun EditDocumentBottomSheet(
     var category by remember { mutableStateOf(doc.categoryEnum) }
     var docDateText by remember {
         mutableStateOf(
-            if (doc.documentDateIso.isNotBlank()) DateSearchParser.formatSlashDate(doc.documentDateIso)
-            else ""
+            DateSearchParser.formatSlashDate(doc.documentDateIso.ifBlank { doc.filedDateIso })
         )
-    }
-    var filedDateText by remember {
-        mutableStateOf(DateSearchParser.formatSlashDate(doc.filedDateIso))
     }
     var ref by remember { mutableStateOf(doc.referenceNumber) }
     var org by remember { mutableStateOf(doc.organization) }
@@ -901,12 +1062,9 @@ private fun EditDocumentBottomSheet(
     var ocrText by remember { mutableStateOf(doc.ocrFullText) }
 
     var showDocPicker by remember { mutableStateOf(false) }
-    var showFiledPicker by remember { mutableStateOf(false) }
 
     val parsedDoc = remember(docDateText) { DateSearchParser.parseDateQuery(docDateText) }
-    val parsedFiled = remember(filedDateText) { DateSearchParser.parseDateQuery(filedDateText) }
     val docErr = docDateText.isNotBlank() && parsedDoc == null
-    val filedErr = parsedFiled == null
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -950,39 +1108,20 @@ private fun EditDocumentBottomSheet(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                OutlinedTextField(
-                    value = docDateText,
-                    onValueChange = { docDateText = it },
-                    label = { Text("Doc Date") },
-                    placeholder = { Text("DD/MM/YYYY") },
-                    isError = docErr,
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showDocPicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Pick document date")
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                OutlinedTextField(
-                    value = filedDateText,
-                    onValueChange = { filedDateText = it },
-                    label = { Text("Filed Date") },
-                    placeholder = { Text("DD/MM/YYYY") },
-                    isError = filedErr,
-                    singleLine = true,
-                    trailingIcon = {
-                        IconButton(onClick = { showFiledPicker = true }) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = "Pick filed date")
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            OutlinedTextField(
+                value = docDateText,
+                onValueChange = { docDateText = it },
+                label = { Text("Document Date (DD/MM/YYYY)") },
+                placeholder = { Text("DD/MM/YYYY") },
+                isError = docErr,
+                singleLine = true,
+                trailingIcon = {
+                    IconButton(onClick = { showDocPicker = true }) {
+                        Icon(Icons.Default.CalendarMonth, contentDescription = "Pick document date")
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             OutlinedTextField(
                 value = ref,
@@ -1039,11 +1178,12 @@ private fun EditDocumentBottomSheet(
             Button(
                 onClick = {
                     val fields = fieldsText.lines().map { it.trim() }.filter { it.isNotBlank() }.take(30)
+                    val effectiveIso = parsedDoc?.primaryIso ?: doc.documentDateIso.ifBlank { doc.filedDateIso }
                     onSave(
                         title,
                         category,
-                        parsedDoc?.primaryIso ?: "",
-                        parsedFiled?.primaryIso ?: doc.filedDateIso,
+                        effectiveIso,
+                        effectiveIso,
                         ref,
                         org,
                         party,
@@ -1052,7 +1192,7 @@ private fun EditDocumentBottomSheet(
                         ocrText
                     )
                 },
-                enabled = title.isNotBlank() && !docErr && !filedErr,
+                enabled = title.isNotBlank() && !docErr,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1070,15 +1210,6 @@ private fun EditDocumentBottomSheet(
             title = "Select Document Date",
             onDismiss = { showDocPicker = false },
             onDateSelected = { iso -> docDateText = DateSearchParser.formatSlashDate(iso) }
-        )
-    }
-
-    if (showFiledPicker) {
-        DocDatePickerDialog(
-            initialIsoDate = parsedFiled?.primaryIso ?: DateSearchParser.todayIso(),
-            title = "Select Filed Date",
-            onDismiss = { showFiledPicker = false },
-            onDateSelected = { iso -> filedDateText = DateSearchParser.formatSlashDate(iso) }
         )
     }
 }

@@ -949,25 +949,67 @@ class DocFolioViewModel(
     }
 
     fun downloadAndInstallUpdate(context: Context, info: AppUpdateInfo) {
-        viewModelScope.launch {
-            _appUpdateState.value = AppUpdateState.Downloading(info, 0)
-            val result = AppUpdateManager.downloadApk(context, info) { percent ->
-                _appUpdateState.value = AppUpdateState.Downloading(info, percent)
-            }
-            result.fold(
-                onSuccess = { apkFile ->
-                    _appUpdateState.value = AppUpdateState.ReadyToInstall(apkFile)
-                    val installResult = AppUpdateManager.installApk(context, apkFile)
-                    installResult.onFailure { err ->
-                        _events.emit(OneShotEvent.ShowMessage("Install launch failed: ${err.message}"))
+        val enqueueResult = AppUpdateManager.startBackgroundDownload(context, info)
+        enqueueResult.fold(
+            onSuccess = { downloadId ->
+                _appUpdateState.value = AppUpdateState.Downloading(info, 0)
+                viewModelScope.launch {
+                    _events.emit(OneShotEvent.ShowMessage("Download started in background. Check notifications."))
+                    var completed = false
+                    while (!completed) {
+                        kotlinx.coroutines.delay(1000L)
+                        val status = AppUpdateManager.queryDownloadStatus(context, downloadId)
+                        when (status) {
+                            is com.example.util.DownloadStatus.Running -> {
+                                if (_appUpdateState.value is AppUpdateState.Downloading) {
+                                    _appUpdateState.value = AppUpdateState.Downloading(info, status.percent)
+                                }
+                            }
+                            is com.example.util.DownloadStatus.Completed -> {
+                                completed = true
+                                val apkFile = status.file ?: File(
+                                    context.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
+                                        ?: File(context.cacheDir, "updates"),
+                                    "ApexSolarWork-v${info.versionName}.apk"
+                                )
+                                _appUpdateState.value = AppUpdateState.ReadyToInstall(apkFile)
+                                val installResult = AppUpdateManager.installApk(context, apkFile)
+                                installResult.onFailure { err ->
+                                    _events.emit(OneShotEvent.ShowMessage("Install launch failed: ${err.message}"))
+                                }
+                            }
+                            is com.example.util.DownloadStatus.Failed -> {
+                                completed = true
+                                _appUpdateState.value = AppUpdateState.Error(status.reason)
+                                _events.emit(OneShotEvent.ShowMessage("Download failed: ${status.reason}"))
+                            }
+                        }
                     }
-                },
-                onFailure = { error ->
-                    _appUpdateState.value = AppUpdateState.Error(error.message ?: "Download failed")
-                    _events.emit(OneShotEvent.ShowMessage("Download failed: ${error.message}"))
                 }
-            )
-        }
+            },
+            onFailure = { error ->
+                // Fallback to in-app stream download if DownloadManager service is unavailable
+                viewModelScope.launch {
+                    _appUpdateState.value = AppUpdateState.Downloading(info, 0)
+                    val result = AppUpdateManager.downloadApk(context, info) { percent ->
+                        _appUpdateState.value = AppUpdateState.Downloading(info, percent)
+                    }
+                    result.fold(
+                        onSuccess = { apkFile ->
+                            _appUpdateState.value = AppUpdateState.ReadyToInstall(apkFile)
+                            val installResult = AppUpdateManager.installApk(context, apkFile)
+                            installResult.onFailure { err ->
+                                _events.emit(OneShotEvent.ShowMessage("Install launch failed: ${err.message}"))
+                            }
+                        },
+                        onFailure = { err ->
+                            _appUpdateState.value = AppUpdateState.Error(err.message ?: "Download failed")
+                            _events.emit(OneShotEvent.ShowMessage("Download failed: ${err.message}"))
+                        }
+                    )
+                }
+            }
+        )
     }
 
     fun dismissUpdateDialog() {

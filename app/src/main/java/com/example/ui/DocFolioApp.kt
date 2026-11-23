@@ -825,7 +825,7 @@ fun DocFolioApp(
 
         is AppUpdateState.Downloading -> {
             AlertDialog(
-                onDismissRequest = { /* Cannot cancel during active download */ },
+                onDismissRequest = viewModel::dismissUpdateDialog,
                 icon = {
                     Icon(
                         imageVector = Icons.Default.Download,
@@ -845,9 +845,18 @@ fun DocFolioApp(
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text("${state.percent}%", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            "Downloading in background via Android system. You can minimize the app safely.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 },
-                confirmButton = {}
+                confirmButton = {
+                    TextButton(onClick = viewModel::dismissUpdateDialog) {
+                        Text("Hide")
+                    }
+                }
             )
         }
 

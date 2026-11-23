@@ -398,16 +398,12 @@ fun DocumentLedgerCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    DateStampChip(
-                        prefix = "Filed",
-                        isoDate = doc.filedDateIso,
-                        highlighted = true
-                    )
-                    if (doc.documentDateIso.isNotBlank()) {
+                    val effectiveDocDate = doc.documentDateIso.ifBlank { doc.filedDateIso }
+                    if (effectiveDocDate.isNotBlank()) {
                         DateStampChip(
                             prefix = "Doc",
-                            isoDate = doc.documentDateIso,
-                            highlighted = false
+                            isoDate = effectiveDocDate,
+                            highlighted = true
                         )
                     }
                 }

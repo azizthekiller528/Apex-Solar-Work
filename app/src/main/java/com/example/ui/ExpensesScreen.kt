@@ -96,9 +96,9 @@ fun ExpensesScreen(
     var showAddMaterialDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    // Collect all unique dates from expenses and materials, sorted descending
-    val availableDates = remember(allExpenses, allMaterials) {
-        val dates = (allExpenses.map { it.dateIso } + allMaterials.map { it.dateIso })
+    // Collect all unique dates from expenses and materials plus selected date, sorted descending
+    val availableDates = remember(allExpenses, allMaterials, selectedDateIso) {
+        val dates = (allExpenses.map { it.dateIso } + allMaterials.map { it.dateIso } + (if (selectedDateIso.isNotBlank()) listOf(selectedDateIso) else emptyList()))
             .filter { it.isNotBlank() }
             .distinct()
             .sortedDescending()
@@ -106,7 +106,7 @@ fun ExpensesScreen(
     }
 
     // Determine current effective date
-    val effectiveDateIso = if (selectedDateIso.isNotBlank() && selectedDateIso in availableDates) {
+    val effectiveDateIso = if (selectedDateIso.isNotBlank()) {
         selectedDateIso
     } else {
         availableDates.firstOrNull() ?: SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())

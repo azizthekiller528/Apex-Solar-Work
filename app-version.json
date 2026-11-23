@@ -1,8 +1,8 @@
 {
-  "versionCode": 8,
-  "versionName": "1.7",
-  "apkUrl": "https://files.catbox.moe/3i54a9.apk",
-  "sha256": "62db274ea1f324a13bee876a480feb5b9cee3526eab85142f56a5aa5c0fc8689",
-  "sizeBytes": 47103219,
-  "releaseNotes": "• New Expenses & Stock Tab: Daily Kharcha tracking with Aziz & Nadeem settlement breakdown\n• Site Materials In/Out Register (Out & Left in Store counts)\n• 1-Tap WhatsApp Daily Site Report Generator\n• Clean piece counts (12 pcs instead of 12.000 EA)\n• Gate Pass 1000367086 off-by-one OCR bug fixed (20 PV modules)\n• 1-Finger double tap to zoom in slip photo viewer"
+  "versionCode": 9,
+  "versionName": "1.8",
+  "apkUrl": "https://files.catbox.moe/ifv7i1.apk",
+  "sha256": "0a372dd123f10928aa56827c1359968c6aee36a1d8bcd10e1dbc696e1fc1bfc7",
+  "sizeBytes": 46291955,
+  "releaseNotes": "• Added permanent version badge (v1.8) on top bar title\n• Added version & build details in account menu\n• Fixed date selection for empty dates in Expenses tab\n• Full Expenses & Site Stock tracking with WhatsApp report"
 }

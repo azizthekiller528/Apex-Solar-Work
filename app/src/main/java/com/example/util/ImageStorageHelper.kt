@@ -1,13 +1,19 @@
 package com.example.util
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.util.Base64
 import androidx.core.content.FileProvider
+import com.example.data.MediaRelayService
+import com.example.model.ScannedDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -190,15 +196,145 @@ object ImageStorageHelper {
     suspend fun loadDocumentBitmap(
         context: Context,
         localImageFileName: String,
-        previewBase64: String
+        previewBase64: String,
+        docId: String = ""
     ): Bitmap? = withContext(Dispatchers.IO) {
         val local = getLocalFile(context, localImageFileName)
         if (local != null) {
             val decoded = BitmapFactory.decodeFile(local.absolutePath)
             if (decoded != null) return@withContext decoded
         }
+        if (docId.isNotBlank()) {
+            val destName = localImageFileName.ifBlank { "${docId}.jpg" }
+            val downloadRes = MediaRelayService.downloadMediaToLocal(context, docId, "photo", destName)
+            val downloadedFile = downloadRes.getOrNull()
+            if (downloadedFile != null && downloadedFile.exists()) {
+                val decoded = BitmapFactory.decodeFile(downloadedFile.absolutePath)
+                if (decoded != null) return@withContext decoded
+            }
+        }
         decodeBase64Preview(previewBase64)
     }
+
+    /**
+     * Saves a full-resolution bitmap to the device public Gallery (Pictures/ApexSolar).
+     */
+    fun saveBitmapToGallery(context: Context, bitmap: Bitmap, title: String): Uri? {
+        val cleanTitle = title.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(40).ifBlank { "slip_photo" }
+        val filename = "${cleanTitle}_${System.currentTimeMillis()}.jpg"
+
+        val resolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/ApexSolar")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        }
+
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues) ?: return null
+        return try {
+            resolver.openOutputStream(uri)?.use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentValues.clear()
+                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+            }
+            uri
+        } catch (_: Exception) {
+            resolver.delete(uri, null, null)
+            null
+        }
+    }
+
+    /**
+     * Saves a generated PDF to the device public Downloads folder (Downloads/ApexSolar).
+     */
+    fun savePdfToDownloads(context: Context, pdfFile: File, title: String): Uri? {
+        if (!pdfFile.exists() || pdfFile.length() == 0L) return null
+        val cleanTitle = title.replace(Regex("[^a-zA-Z0-9_-]"), "_").take(40).ifBlank { "doc" }
+        val filename = "${cleanTitle}.pdf"
+
+        val resolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/ApexSolar")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+        }
+
+        val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        } else {
+            resolver.insert(MediaStore.Files.getContentUri("external"), contentValues)
+        } ?: return null
+
+        return try {
+            resolver.openOutputStream(uri)?.use { out ->
+                pdfFile.inputStream().use { input ->
+                    input.copyTo(out)
+                }
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentValues.clear()
+                contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+                resolver.update(uri, contentValues, null, null)
+            }
+            uri
+        } catch (_: Exception) {
+            resolver.delete(uri, null, null)
+            null
+        }
+    }
+
+    /**
+     * Bulk exports all documents (photos and PDFs) into public Gallery and Downloads.
+     */
+    suspend fun exportAllDocumentsToPhone(
+        context: Context,
+        documents: List<ScannedDocument>,
+        onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
+    ): Pair<Int, Int> = withContext(Dispatchers.IO) {
+        var exportedPhotos = 0
+        var exportedPdfs = 0
+        val docsDir = getDocsDirectory(context)
+
+        documents.forEachIndexed { index, doc ->
+            onProgress(index + 1, documents.size)
+            val imgFile = File(docsDir, doc.localImageFileName.ifBlank { "${doc.id}.jpg" })
+            if (imgFile.exists() && imgFile.length() > 0L) {
+                val bmp = BitmapFactory.decodeFile(imgFile.absolutePath)
+                if (bmp != null) {
+                    val saved = saveBitmapToGallery(context, bmp, doc.title.ifBlank { doc.id })
+                    if (saved != null) exportedPhotos++
+                }
+            }
+            val pdfFile = File(docsDir, doc.localPdfFileName.ifBlank { "${doc.id}_searchable.pdf" })
+            val effectivePdf = if (pdfFile.exists() && pdfFile.length() > 0L) {
+                pdfFile
+            } else {
+                try {
+                    SearchablePdfGenerator.generateDocumentPdf(
+                        context = context,
+                        document = doc,
+                        scanBitmap = null,
+                        targetFileName = doc.localPdfFileName.ifBlank { "${doc.id}_searchable.pdf" }
+                    )
+                } catch (_: Exception) { null }
+            }
+            if (effectivePdf != null && effectivePdf.exists()) {
+                val saved = savePdfToDownloads(context, effectivePdf, doc.title.ifBlank { doc.id })
+                if (saved != null) exportedPdfs++
+            }
+        }
+        exportedPhotos to exportedPdfs
+    }
+
 
     suspend fun encodeCompactPreviewBase64(bitmap: Bitmap): String =
         withContext(Dispatchers.IO) {

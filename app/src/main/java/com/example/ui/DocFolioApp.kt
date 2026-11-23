@@ -19,11 +19,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
+import com.example.data.MediaRelayService
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.StarBorder
@@ -163,6 +165,8 @@ fun DocFolioApp(
     var showCameraView by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
+    var isBulkExporting by remember { mutableStateOf(false) }
+    var isCloudSyncing by remember { mutableStateOf(false) }
 
     var pendingSavePdfSource by remember { mutableStateOf<File?>(null) }
 
@@ -398,6 +402,56 @@ fun DocFolioApp(
                                     },
                                     onClick = { showAccountMenu = false },
                                     enabled = false
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isBulkExporting) "Exporting to Phone..." else "Save All Slips to Downloads") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.Download,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        if (!isBulkExporting) {
+                                            scope.launch {
+                                                isBulkExporting = true
+                                                snackbarHostState.showSnackbar("Exporting all slips to Downloads/ApexSolar...")
+                                                val docs = (documentsState as? UiState.Success)?.data ?: emptyList()
+                                                val (photos, pdfs) = ImageStorageHelper.exportAllDocumentsToPhone(context, docs)
+                                                isBulkExporting = false
+                                                snackbarHostState.showSnackbar("Saved $photos photos to Gallery & $pdfs PDFs to Downloads!")
+                                            }
+                                        }
+                                    },
+                                    enabled = !isBulkExporting
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (isCloudSyncing) "Syncing from Cloud..." else "Sync Photos from Telegram Cloud") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = Icons.Default.CloudDownload,
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        showAccountMenu = false
+                                        if (!isCloudSyncing) {
+                                            scope.launch {
+                                                isCloudSyncing = true
+                                                snackbarHostState.showSnackbar("Connecting to Telegram relay to sync photos...")
+                                                val docs = (documentsState as? UiState.Success)?.data ?: emptyList()
+                                                val downloaded = MediaRelayService.syncAllMissingPhotos(context, docs)
+                                                isCloudSyncing = false
+                                                if (downloaded > 0) {
+                                                    snackbarHostState.showSnackbar("Downloaded $downloaded missing photos from Telegram cloud!")
+                                                } else {
+                                                    snackbarHostState.showSnackbar("All photos are already downloaded on phone!")
+                                                }
+                                            }
+                                        }
+                                    },
+                                    enabled = !isCloudSyncing
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Check for Updates") },

@@ -1,6 +1,8 @@
 package com.example.data
 
+import android.content.Context
 import android.util.Log
+import com.example.util.ImageStorageHelper
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.CancellationException
@@ -145,6 +147,72 @@ object MediaRelayService {
     }
 
     /**
+     * Downloads a document media file (photo or pdf) from the Oracle VM relay and saves it locally.
+     */
+    suspend fun downloadMediaToLocal(
+        context: Context,
+        docId: String,
+        fileType: String,
+        destFileName: String
+    ): Result<File> = withContext(Dispatchers.IO) {
+        val docsDir = ImageStorageHelper.getDocsDirectory(context)
+        val destFile = File(docsDir, destFileName)
+        if (destFile.exists() && destFile.length() > 0L) {
+            return@withContext Result.success(destFile)
+        }
+
+        val url = getMediaStreamUrl(docId, fileType, RELAY_INTERNAL_SECRET)
+        val request = Request.Builder().url(url).build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(RuntimeException("Relay download failed with code ${response.code}"))
+                }
+                val body = response.body ?: return@withContext Result.failure(RuntimeException("Empty response body"))
+                val tempFile = File(docsDir, "$destFileName.download_${System.currentTimeMillis()}")
+                tempFile.outputStream().use { out ->
+                    body.byteStream().use { input ->
+                        input.copyTo(out)
+                    }
+                }
+                if (tempFile.renameTo(destFile)) {
+                    Log.i(TAG, "Successfully downloaded $fileType for doc $docId from relay")
+                    Result.success(destFile)
+                } else {
+                    Result.failure(RuntimeException("Failed to rename temporary download file"))
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Download error for $fileType ($docId): ${e.message}")
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Downloads all missing full-resolution photos from the Oracle VM relay / Telegram in background.
+     */
+    suspend fun syncAllMissingPhotos(
+        context: Context,
+        documents: List<com.example.model.ScannedDocument>,
+        onProgress: (current: Int, total: Int) -> Unit = { _, _ -> }
+    ): Int = withContext(Dispatchers.IO) {
+        var downloaded = 0
+        documents.forEachIndexed { index, doc ->
+            onProgress(index + 1, documents.size)
+            val fileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" }
+            val local = File(ImageStorageHelper.getDocsDirectory(context), fileName)
+            if (!local.exists() || local.length() == 0L) {
+                val res = downloadMediaToLocal(context, doc.id, "photo", fileName)
+                if (res.isSuccess) downloaded++
+            }
+        }
+        downloaded
+    }
+
+    /**
      * Generates a streaming URL for viewing or downloading the document media from the relay.
      */
     fun getMediaStreamUrl(docId: String, fileType: String, token: String? = null): String {
@@ -153,3 +221,4 @@ object MediaRelayService {
         return if (token != null) "$base?token=$token" else base
     }
 }
+

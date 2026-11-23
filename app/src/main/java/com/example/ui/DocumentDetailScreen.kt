@@ -146,7 +146,8 @@ fun DocumentDetailScreen(
         scanBitmap = ImageStorageHelper.loadDocumentBitmap(
             context = context,
             localImageFileName = doc.localImageFileName,
-            previewBase64 = doc.previewBase64
+            previewBase64 = doc.previewBase64,
+            docId = doc.id
         )
     }
 
@@ -369,7 +370,40 @@ fun DocumentDetailScreen(
                     }
                 }
 
-                // Metadata Index Card
+                // Save Photo to Phone Gallery Button
+                OutlinedButton(
+                    onClick = {
+                        val bmp = scanBitmap
+                        if (bmp != null) {
+                            val savedUri = ImageStorageHelper.saveBitmapToGallery(
+                                context = context,
+                                bitmap = bmp,
+                                title = doc.title.ifBlank { doc.id }
+                            )
+                            if (savedUri != null) {
+                                onCopyFeedback("Photo saved to Gallery (Pictures/ApexSolar)")
+                            } else {
+                                onCopyFeedback("Failed to save photo to Gallery")
+                            }
+                        } else {
+                            onCopyFeedback("Photo loading or downloading from cloud...")
+                        }
+                    },
+                    enabled = scanBitmap != null,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("detail_save_photo_gallery_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save Full-Resolution Photo to Gallery", maxLines = 1)
+                }
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     color = MaterialTheme.colorScheme.surface,

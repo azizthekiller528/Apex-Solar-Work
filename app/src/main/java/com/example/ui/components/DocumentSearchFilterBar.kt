@@ -542,8 +542,9 @@ private fun ActiveDateRangeBanner(
     onClear: () -> Unit
 ) {
     val isSingleDayRange = rangeStart != null && rangeStart == rangeEnd
-    val rangeLabel = if (isSingleDayRange && rangeStart != null) {
-        "${DateSearchParser.formatSlashDate(rangeStart)} • ${DateSearchParser.formatFriendlyDate(rangeStart)}"
+    val singleDate = rangeStart ?: ""
+    val rangeLabel = if (isSingleDayRange && singleDate.isNotBlank()) {
+        "${DateSearchParser.formatSlashDate(singleDate)} • ${DateSearchParser.formatFriendlyDate(singleDate)}"
     } else {
         buildString {
             append(rangeStart?.let { DateSearchParser.formatSlashDate(it) } ?: "Any")
@@ -592,9 +593,9 @@ private fun ActiveDateRangeBanner(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    if (isSingleDayRange && rangeStart != null && displayedDocs.isNotEmpty()) {
+                    if (isSingleDayRange && singleDate.isNotBlank() && displayedDocs.isNotEmpty()) {
                         OutlinedButton(
-                            onClick = { onExportDayPdf(rangeStart, displayedDocs) },
+                            onClick = { onExportDayPdf(singleDate, displayedDocs) },
                             enabled = !isExportingPdf,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                             modifier = Modifier.testTag("vault_range_export_day_pdf")

@@ -159,14 +159,15 @@ object SearchablePdfGenerator {
         val clippedTitle = if (doc.title.length > 62) doc.title.take(59) + "..." else doc.title
         canvas.drawText(clippedTitle, MARGIN, 23f, titlePaint)
 
-        val docDateLabel = if (doc.documentDateIso.isNotBlank()) {
-            "Doc Date: ${DateSearchParser.formatSlashDate(doc.documentDateIso)}"
+        val effectiveDateIso = doc.documentDateIso.ifBlank { doc.filedDateIso }
+        val dateLabel = if (effectiveDateIso.isNotBlank()) {
+            "Date: ${DateSearchParser.formatSlashDate(effectiveDateIso)}"
         } else {
-            "Doc Date: —"
+            "Date: —"
         }
-        val filedLabel = "Filed: ${DateSearchParser.formatSlashDate(doc.filedDateIso)}"
         val refLabel = if (doc.referenceNumber.isNotBlank()) " | Ref: ${doc.referenceNumber}" else ""
-        canvas.drawText("$docDateLabel  |  $filedLabel$refLabel", MARGIN, 41f, metaPaint)
+        val orgLabel = if (doc.organization.isNotBlank()) " | ${doc.organization}" else ""
+        canvas.drawText("$dateLabel$refLabel$orgLabel", MARGIN, 41f, metaPaint)
 
         // Draw crisp scanned image fitted cleanly within the page frame
         val imageTop = 68f

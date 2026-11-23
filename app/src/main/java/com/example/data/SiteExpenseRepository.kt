@@ -121,7 +121,8 @@ class SiteExpenseRepository(
             sb.append("\n━━━━━━━━━━━━━━━━━━━━\n")
             sb.append("💵 *TOTAL EXPENSE: ₹${total.toInt()}*\n")
             payerTotals.forEach { (payer, amt) ->
-                sb.append("👤 *Paid by $payer:* ₹${amt.toInt()}\n")
+                val payerLabel = if (payer.isNotBlank()) "Paid by $payer" else "Other"
+                sb.append("👤 *$payerLabel:* ₹${amt.toInt()}\n")
             }
             sb.append("━━━━━━━━━━━━━━━━━━━━\n\n")
         }

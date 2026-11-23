@@ -490,7 +490,11 @@ fun ExpensesScreen(
 
     // Date Picker Dialog
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState()
+        val initialMillis = remember(effectiveDateIso) {
+            com.example.util.DateSearchParser.isoToUtcMillis(effectiveDateIso)
+                ?: com.example.util.DateSearchParser.isoToUtcMillis(com.example.util.DateSearchParser.todayIso())
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
             confirmButton = {
@@ -498,7 +502,7 @@ fun ExpensesScreen(
                     onClick = {
                         val millis = datePickerState.selectedDateMillis
                         if (millis != null) {
-                            val iso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(millis))
+                            val iso = com.example.util.DateSearchParser.utcMillisToIso(millis)
                             onSelectDate(iso)
                         }
                         showDatePicker = false

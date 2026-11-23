@@ -299,5 +299,12 @@ class DocFolioPureJvmTest {
         assertTrue(report.contains("Paid by Aziz:* ₹1000"))
         assertTrue(report.contains("Paid by Nadeem:* ₹100"))
         assertTrue(report.contains("J Bolt* — OUT: 96 | Left in Store: 53"))
+
+        val blankPayerExpenses = listOf(
+            com.example.data.model.SiteExpense("3", "2026-11-17", "Chai", 50.0, "", "", "FOOD")
+        )
+        val blankReport = repo.formatWhatsAppReport("17 November 2026", blankPayerExpenses, emptyList())
+        assertTrue(blankReport.contains("TOTAL EXPENSE: ₹50"))
+        assertTrue(blankReport.contains("Other:* ₹50"))
     }
 }

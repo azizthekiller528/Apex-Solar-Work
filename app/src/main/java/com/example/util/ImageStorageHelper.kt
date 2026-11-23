@@ -354,14 +354,18 @@ object ImageStorageHelper {
         val matrix = Matrix().apply { postRotate(90f) }
         val rotated = Bitmap.createBitmap(sourceBmp, 0, 0, sourceBmp.width, sourceBmp.height, matrix, true)
 
+        val tmpFile = File(docsDir, "${file.name}.${System.nanoTime()}.tmp")
         try {
-            FileOutputStream(file).use { out ->
+            FileOutputStream(tmpFile).use { out ->
                 rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
+            }
+            if (tmpFile.exists() && tmpFile.length() > 0L) {
+                tmpFile.renameTo(file)
             }
             thumbnailFileIndex.clear()
             ThumbnailImageLoader.clearCache(context)
         } catch (_: Exception) {
-            // Keep in-memory rotated if file write fails
+            runCatching { tmpFile.delete() }
         }
         rotated
     }

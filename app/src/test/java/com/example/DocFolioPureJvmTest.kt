@@ -219,4 +219,21 @@ class DocFolioPureJvmTest {
         assertEquals("company_documents", DocumentRepository.COMPANY_DOCS_PATH)
         assertEquals("docfolio_secret_test_key_99812", MediaRelayService.RELAY_INTERNAL_SECRET)
     }
+
+    @Test
+    fun seedDocuments_haveCorrectedTypoFreeMaterialNames() {
+        val file = listOf(
+            java.io.File("src/main/assets/seed_documents.json"),
+            java.io.File("app/src/main/assets/seed_documents.json")
+        ).firstOrNull { it.exists() } ?: error("seed_documents.json not found")
+        val text = file.readText()
+        assertFalse("Should not contain ANTI THETT typo", text.contains("ANTI THETT"))
+        assertFalse("Should not contain COLUM typo", text.contains("\"COLUM 3350"))
+        assertFalse("Should not contain PUERLING typo", text.contains("PUERLING"))
+        assertFalse("Should not contain CONNECTION PLAT: typo", text.contains("CONNECTION PLAT:"))
+        assertTrue("Should contain ANTI THEFT", text.contains("ANTI THEFT NUT BOLT M16"))
+        assertTrue("Should contain COLUMN 3350", text.contains("COLUMN 3350"))
+        assertTrue("Should contain PURLIN 5125", text.contains("PURLIN 5125"))
+        assertTrue("Should contain CONNECTION PLATE", text.contains("CONNECTION PLATE"))
+    }
 }

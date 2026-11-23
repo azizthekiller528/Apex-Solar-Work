@@ -142,6 +142,7 @@ fun DocumentDetailScreen(
     var scanBitmap by remember(doc.id, doc.localImageFileName, doc.previewBase64) {
         mutableStateOf<Bitmap?>(null)
     }
+    var isRotating by remember { mutableStateOf(false) }
     var showZoomDialog by remember { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -274,16 +275,23 @@ fun DocumentDetailScreen(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
                                     .padding(12.dp)
-                                    .clickable {
-                                        scope.launch {
-                                            val rotated = ImageStorageHelper.rotateImageFile90(
-                                                context = context,
-                                                localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
-                                                currentBitmap = scanBitmap
-                                            )
-                                            if (rotated != null) {
-                                                scanBitmap = rotated
-                                                onCopyFeedback("Photo rotated 90°")
+                                    .clickable(enabled = !isRotating) {
+                                        if (!isRotating) {
+                                            isRotating = true
+                                            scope.launch {
+                                                try {
+                                                    val rotated = ImageStorageHelper.rotateImageFile90(
+                                                        context = context,
+                                                        localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
+                                                        currentBitmap = scanBitmap
+                                                    )
+                                                    if (rotated != null) {
+                                                        scanBitmap = rotated
+                                                        onCopyFeedback("Photo rotated 90°")
+                                                    }
+                                                } finally {
+                                                    isRotating = false
+                                                }
                                             }
                                         }
                                     }
@@ -823,15 +831,22 @@ fun DocumentDetailScreen(
             bitmap = scanBitmap!!,
             title = doc.title,
             onRotate = {
-                scope.launch {
-                    val rotated = ImageStorageHelper.rotateImageFile90(
-                        context = context,
-                        localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
-                        currentBitmap = scanBitmap
-                    )
-                    if (rotated != null) {
-                        scanBitmap = rotated
-                        onCopyFeedback("Photo rotated 90°")
+                if (!isRotating) {
+                    isRotating = true
+                    scope.launch {
+                        try {
+                            val rotated = ImageStorageHelper.rotateImageFile90(
+                                context = context,
+                                localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
+                                currentBitmap = scanBitmap
+                            )
+                            if (rotated != null) {
+                                scanBitmap = rotated
+                                onCopyFeedback("Photo rotated 90°")
+                            }
+                        } finally {
+                            isRotating = false
+                        }
                     }
                 }
             },

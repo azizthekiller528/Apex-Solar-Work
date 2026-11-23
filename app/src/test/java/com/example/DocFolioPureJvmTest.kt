@@ -307,4 +307,59 @@ class DocFolioPureJvmTest {
         assertTrue(blankReport.contains("TOTAL EXPENSE: ₹50"))
         assertTrue(blankReport.contains("Other:* ₹50"))
     }
+
+    @Test
+    fun deviceTelemetry_mergeDeviceRecord_addsAndUpdatesDevicesCleanly() {
+        val initialJson = "{}"
+        val mergedFirst = com.example.util.DeviceTelemetryManager.mergeDeviceRecord(
+            existingJson = initialJson,
+            deviceId = "dev_alpha",
+            deviceModel = "Samsung Galaxy S23",
+            androidVersion = "14",
+            versionName = "1.9",
+            versionCode = 10,
+            nowIso = "2026-11-23T10:00:00Z"
+        )
+
+        val root1 = org.json.JSONObject(mergedFirst)
+        assertEquals(1, root1.getInt("totalDevices"))
+        val dev1 = root1.getJSONObject("devices").getJSONObject("dev_alpha")
+        assertEquals("Samsung Galaxy S23", dev1.getString("deviceModel"))
+        assertEquals("1.9", dev1.getString("appVersion"))
+        assertEquals(1, dev1.getInt("pingCount"))
+        assertEquals("2026-11-23T10:00:00Z", dev1.getString("firstSeen"))
+        assertEquals("2026-11-23T10:00:00Z", dev1.getString("lastSeen"))
+
+        // Update dev_alpha later and add dev_beta
+        val mergedSecond = com.example.util.DeviceTelemetryManager.mergeDeviceRecord(
+            existingJson = mergedFirst,
+            deviceId = "dev_alpha",
+            deviceModel = "Samsung Galaxy S23",
+            androidVersion = "14",
+            versionName = "1.9",
+            versionCode = 10,
+            nowIso = "2026-11-23T15:00:00Z"
+        )
+        val root2 = org.json.JSONObject(mergedSecond)
+        assertEquals(1, root2.getInt("totalDevices"))
+        val dev1Updated = root2.getJSONObject("devices").getJSONObject("dev_alpha")
+        assertEquals(2, dev1Updated.getInt("pingCount"))
+        assertEquals("2026-11-23T10:00:00Z", dev1Updated.getString("firstSeen"))
+        assertEquals("2026-11-23T15:00:00Z", dev1Updated.getString("lastSeen"))
+
+        val mergedThird = com.example.util.DeviceTelemetryManager.mergeDeviceRecord(
+            existingJson = mergedSecond,
+            deviceId = "dev_beta",
+            deviceModel = "Xiaomi Redmi Note 12",
+            androidVersion = "13",
+            versionName = "1.9",
+            versionCode = 10,
+            nowIso = "2026-11-23T15:05:00Z"
+        )
+        val root3 = org.json.JSONObject(mergedThird)
+        assertEquals(2, root3.getInt("totalDevices"))
+        val dev2 = root3.getJSONObject("devices").getJSONObject("dev_beta")
+        assertEquals("Xiaomi Redmi Note 12", dev2.getString("deviceModel"))
+        assertEquals(1, dev2.getInt("pingCount"))
+    }
 }

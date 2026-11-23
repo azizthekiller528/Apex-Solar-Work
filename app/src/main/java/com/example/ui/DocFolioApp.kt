@@ -175,6 +175,7 @@ fun DocFolioApp(
 
     LaunchedEffect(Unit) {
         viewModel.checkForAppUpdates(currentVersionCode = currentAppVersionCode, silent = true)
+        com.example.util.DeviceTelemetryManager.recordHeartbeatAsync(context, this)
     }
 
     LaunchedEffect(effectiveUid) {

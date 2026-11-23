@@ -169,10 +169,27 @@ object AppUpdateManager {
                         }
                         else -> return DownloadStatus.Running(0)
                     }
+                } else {
+                    val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                        ?: File(context.cacheDir, "updates")
+                    val candidate = destDir.listFiles()?.filter { it.name.endsWith(".apk") && it.length() > 0L }
+                        ?.maxByOrNull { it.lastModified() }
+                    if (candidate != null) {
+                        return DownloadStatus.Completed(candidate)
+                    }
+                    return DownloadStatus.Failed("Download was cancelled or cleared")
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to query download status", e)
+            val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: File(context.cacheDir, "updates")
+            val candidate = destDir.listFiles()?.filter { it.name.endsWith(".apk") && it.length() > 0L }
+                ?.maxByOrNull { it.lastModified() }
+            if (candidate != null) {
+                return DownloadStatus.Completed(candidate)
+            }
+            return DownloadStatus.Failed("Query error: ${e.message}")
         }
         return DownloadStatus.Running(0)
     }

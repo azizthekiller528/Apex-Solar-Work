@@ -5,4 +5,5 @@
     <cache-path name="docfolio_exports" path="exports/" />
     <cache-path name="docfolio_updates" path="updates/" />
     <external-files-path name="docfolio_external_files" path="." />
+    <external-path name="docfolio_external" path="." />
 </paths>

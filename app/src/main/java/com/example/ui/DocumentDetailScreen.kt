@@ -986,10 +986,11 @@ private fun ZoomablePhotoDialog(
                                 scale = targetScale
                                 val centerX = size.width / 2f
                                 val centerY = size.height / 2f
-                                offset = Offset(
-                                    x = (centerX - tapOffset.x) * (targetScale - 1f),
-                                    y = (centerY - tapOffset.y) * (targetScale - 1f)
-                                )
+                                val maxPanX = ((size.width * (targetScale - 1f)) / 2f).coerceAtLeast(0f)
+                                val maxPanY = ((size.height * (targetScale - 1f)) / 2f).coerceAtLeast(0f)
+                                val targetX = ((centerX - tapOffset.x) * (targetScale - 1f)).coerceIn(-maxPanX, maxPanX)
+                                val targetY = ((centerY - tapOffset.y) * (targetScale - 1f)).coerceIn(-maxPanY, maxPanY)
+                                offset = Offset(targetX, targetY)
                             }
                         }
                     )
@@ -998,7 +999,15 @@ private fun ZoomablePhotoDialog(
                     detectTransformGestures { _, pan, zoom, _ ->
                         val nextScale = (scale * zoom).coerceIn(1f, 5f)
                         scale = nextScale
-                        offset = if (nextScale <= 1.01f) Offset.Zero else offset + pan
+                        if (nextScale <= 1.01f) {
+                            offset = Offset.Zero
+                        } else {
+                            val maxPanX = ((size.width * (nextScale - 1f)) / 2f).coerceAtLeast(0f)
+                            val maxPanY = ((size.height * (nextScale - 1f)) / 2f).coerceAtLeast(0f)
+                            val newX = (offset.x + pan.x).coerceIn(-maxPanX, maxPanX)
+                            val newY = (offset.y + pan.y).coerceIn(-maxPanY, maxPanY)
+                            offset = Offset(newX, newY)
+                        }
                     }
                 }
         ) {

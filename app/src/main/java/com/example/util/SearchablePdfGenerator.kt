@@ -340,7 +340,8 @@ object SearchablePdfGenerator {
                 canvas.drawText("EXTRACTED FIELDS & LINE ITEMS", MARGIN, y, sectionPaint)
                 y += 14f
                 for (field in doc.extractedFields) {
-                    for (line in wrapText("• $field", bodyPaint, CONTENT_WIDTH)) {
+                    val cleanField = field.replace(Regex("""\.000\b"""), "").replace(Regex("""\bEA\b""", RegexOption.IGNORE_CASE), "Nos")
+                    for (line in wrapText("• $cleanField", bodyPaint, CONTENT_WIDTH)) {
                         ensureSpace(14f)
                         canvas.drawText(line, MARGIN, y, bodyPaint)
                         y += 13.5f

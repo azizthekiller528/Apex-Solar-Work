@@ -32,6 +32,7 @@ import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -924,6 +925,14 @@ class DocFolioViewModel(
     }
 
     fun checkForAppUpdates(currentVersionCode: Long, silent: Boolean = true) {
+        if (_appUpdateState.value is AppUpdateState.Downloading) {
+            if (!silent) {
+                viewModelScope.launch {
+                    _events.emit(OneShotEvent.ShowMessage("Download already in progress. Check notifications."))
+                }
+            }
+            return
+        }
         viewModelScope.launch {
             if (!silent) _appUpdateState.value = AppUpdateState.Checking
             val result = AppUpdateManager.checkForUpdate(currentVersionCode)
@@ -956,7 +965,10 @@ class DocFolioViewModel(
                 viewModelScope.launch {
                     _events.emit(OneShotEvent.ShowMessage("Download started in background. Check notifications."))
                     var completed = false
-                    while (!completed) {
+                    var attempts = 0
+                    val maxAttempts = 600 // 10 minutes timeout
+                    while (!completed && attempts < maxAttempts && isActive) {
+                        attempts++
                         kotlinx.coroutines.delay(1000L)
                         val status = AppUpdateManager.queryDownloadStatus(context, downloadId)
                         when (status) {
@@ -984,6 +996,10 @@ class DocFolioViewModel(
                                 _events.emit(OneShotEvent.ShowMessage("Download failed: ${status.reason}"))
                             }
                         }
+                    }
+                    if (!completed && attempts >= maxAttempts) {
+                        _appUpdateState.value = AppUpdateState.Error("Download timed out")
+                        _events.emit(OneShotEvent.ShowMessage("Download timed out"))
                     }
                 }
             },

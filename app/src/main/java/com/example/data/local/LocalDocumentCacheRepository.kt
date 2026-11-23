@@ -105,9 +105,6 @@ class LocalDocumentCacheRepository(
 
     suspend fun seedFromAssetsIfEmpty(context: Context, userId: String = "apex_team") = withContext(Dispatchers.IO) {
         try {
-            val count = documentDao.getDocumentCount()
-            if (count > 0) return@withContext
-
             val jsonString = context.assets.open("seed_documents.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
             val docsDir = ImageStorageHelper.getDocsDirectory(context)
@@ -116,6 +113,7 @@ class LocalDocumentCacheRepository(
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
                 val docId = obj.getString("id")
+                if (documentDao.getById(docId) != null) continue
                 val fileName = "${docId}.jpg"
                 val destFile = File(docsDir, fileName)
 

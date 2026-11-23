@@ -414,7 +414,7 @@ class DocumentRepository(
         private const val QUERY_LIMIT = 500L
         private const val MIN_NON_BLANK_ISO_DATE = "0001-01-01"
 
-        private val DOCUMENT_SORT_ORDER = compareByDescending<ScannedDocument> { it.filedDateIso }
+        internal val DOCUMENT_SORT_ORDER = compareByDescending<ScannedDocument> { it.filedDateIso }
             .thenByDescending { it.createdAt?.seconds ?: 0L }
 
         internal fun normalizeDateRangeBounds(

@@ -211,11 +211,12 @@ class DocFolioViewModel(
 
     val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
         combine(localDocsFlow, cloudDocsFlow) { localDocs, cloudDocs ->
+            val cloud = cloudDocs ?: emptyList()
             val docs = when {
-                !cloudDocs.isNullOrEmpty() -> cloudDocs
-                localDocs.isNotEmpty() -> localDocs
-                cloudDocs != null -> emptyList()
-                else -> emptyList()
+                cloud.isEmpty() -> localDocs
+                localDocs.isEmpty() -> cloud
+                else -> DocumentRepository.mergeDistinctDocuments(cloud, localDocs)
+                    .sortedWith(DocumentRepository.DOCUMENT_SORT_ORDER)
             }
             UiState.Success(docs)
         }

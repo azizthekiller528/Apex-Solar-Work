@@ -1,8 +1,8 @@
 {
   "versionCode": 11,
   "versionName": "2.0",
-  "apkUrl": "https://github.com/azizthekiller2/Apex-Solar-Work/releases/download/v2.0/Apex_Solar_Work_v2.0.apk",
-  "sha256": "4bceceba9ee4687204c2a41f4a3637cce66639d77b2d1db5c5c19d76b307cd71",
-  "sizeBytes": 46400468,
-  "releaseNotes": "• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai\n• In-dialog date picker and quick 'Today' selector directly in Add Expense / Add Material popups\n• Automatic synchronization of daily site reports to Cloud Firestore Vault\n• Background download manager and device telemetry heartbeat"
+  "apkUrl": "https://github.com/azizthekiller528/Apex-Solar-Work/releases/download/v2.0/Apex_Solar_Work_v2.0.apk",
+  "sha256": "b93743abd7be18651ce63b1c7253434797d45919e57f650b01bb9c2f21771079",
+  "sizeBytes": 46933892,
+  "releaseNotes": "• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai\n• In-dialog date picker and quick 'Today' selector directly in Add Expense / Add Material popups\n• Smooth date chip auto-scrolling & scrollable dialogs for all screen sizes\n• Automatic synchronization of daily site reports to Cloud Firestore Vault\n• Background download manager and device telemetry heartbeat"
 }

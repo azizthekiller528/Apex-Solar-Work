@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8",
-  "apkUrl": "https://files.catbox.moe/ifv7i1.apk",
-  "sha256": "0a372dd123f10928aa56827c1359968c6aee36a1d8bcd10e1dbc696e1fc1bfc7",
-  "sizeBytes": 46291955,
-  "releaseNotes": "• Added permanent version badge (v1.8) on top bar title\n• Added version & build details in account menu\n• Fixed date selection for empty dates in Expenses tab\n• Full Expenses & Site Stock tracking with WhatsApp report"
+  "versionCode": 10,
+  "versionName": "1.9",
+  "apkUrl": "https://files.catbox.moe/9yb5er.apk",
+  "sha256": "d58f6898daaf99a986cbc028a65a6f99e6580103e2ae6e57a9b4d45c2a6c7391",
+  "sizeBytes": 46308387,
+  "releaseNotes": "• Android system background download (never aborts when minimized or screen locked)\n• Download progress in notification shade with tap-to-install\n• Clean single Doc date display on all document cards\n• Permanent v1.9 version badge on top bar and account menu\n• Full Expenses & Site Stock tracking with WhatsApp daily report"
 }

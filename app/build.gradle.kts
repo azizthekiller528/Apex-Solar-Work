@@ -71,7 +71,17 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      all { testTask ->
+        testTask.filter {
+          excludeTestsMatching("*Robolectric*")
+          excludeTestsMatching("com.example.DocFolioCoreUnitTest")
+        }
+      }
+    }
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true

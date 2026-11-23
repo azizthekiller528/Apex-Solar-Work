@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.DocumentRepository
+import com.example.data.GeminiOcrService
 import com.example.data.MediaRelayService
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
@@ -21,6 +22,29 @@ import org.junit.Test
  * These tests execute directly on host JVM without requiring Robolectric or native Android libs.
  */
 class DocFolioPureJvmTest {
+
+    @Test
+    fun geminiOcrParser_normalizesValidAndBlankDatePayloads() {
+        val service = GeminiOcrService()
+        val json = """
+            {
+              "title": "Material Requisition Slip #6717",
+              "category": "MATERIAL_SLIP",
+              "documentDateIso": "24/02/2026",
+              "referenceNumber": "6717",
+              "organization": "Kalpataru Projects International Ltd.",
+              "contractorOrParty": "Apex Solar",
+              "summary": "440 Nut Bolt 8mm issued.",
+              "extractedFields": ["Item: Nut Bolt 8mm", "Issued: 440"],
+              "ocrFullText": "KALPATARU 6717 Apex Solar Nut Bolt 8mm 440"
+            }
+        """.trimIndent()
+        val result = service.parseExtractionJson(json)
+        assertEquals("2026-02-24", result.documentDateIso)
+        assertEquals(DocumentCategory.MATERIAL_SLIP, result.category)
+        assertEquals(2, result.extractedFields.size)
+        assertTrue(result.ocrFullText.contains("Apex Solar"))
+    }
 
     @Test
     fun parseDateQuery_handlesBossSlashDatesWithDisambiguation() {

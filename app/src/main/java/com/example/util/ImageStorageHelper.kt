@@ -335,6 +335,36 @@ object ImageStorageHelper {
         exportedPhotos to exportedPdfs
     }
 
+    /**
+     * Rotates an image file 90 degrees clockwise and updates it on disk and in memory.
+     */
+    suspend fun rotateImageFile90(
+        context: Context,
+        localImageFileName: String,
+        currentBitmap: Bitmap?
+    ): Bitmap? = withContext(Dispatchers.IO) {
+        val docsDir = getDocsDirectory(context)
+        val file = File(docsDir, localImageFileName)
+        val sourceBmp = if (file.exists() && file.length() > 0L) {
+            BitmapFactory.decodeFile(file.absolutePath)
+        } else {
+            currentBitmap
+        } ?: return@withContext null
+
+        val matrix = Matrix().apply { postRotate(90f) }
+        val rotated = Bitmap.createBitmap(sourceBmp, 0, 0, sourceBmp.width, sourceBmp.height, matrix, true)
+
+        try {
+            FileOutputStream(file).use { out ->
+                rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
+            }
+            thumbnailFileIndex.clear()
+            ThumbnailImageLoader.clearCache(context)
+        } catch (_: Exception) {
+            // Keep in-memory rotated if file write fails
+        }
+        rotated
+    }
 
     suspend fun encodeCompactPreviewBase64(bitmap: Bitmap): String =
         withContext(Dispatchers.IO) {

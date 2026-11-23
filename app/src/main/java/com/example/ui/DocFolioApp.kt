@@ -155,7 +155,9 @@ fun DocFolioApp(
     LaunchedEffect(effectiveUid) {
         withContext(Dispatchers.IO) {
             val localDb = DocFolioDatabase.getInstance(context)
-            LocalDocumentCacheRepository(localDb.documentDao()).seedFromAssetsIfEmpty(context, effectiveUid)
+            val repo = LocalDocumentCacheRepository(localDb.documentDao())
+            repo.seedFromAssetsIfEmpty(context, effectiveUid)
+            repo.syncUpdatedSeedPhotos(context)
         }
     }
 

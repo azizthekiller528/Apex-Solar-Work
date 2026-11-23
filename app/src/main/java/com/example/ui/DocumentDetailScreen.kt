@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
@@ -69,7 +70,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -133,6 +136,7 @@ fun DocumentDetailScreen(
 
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
 
     var scanBitmap by remember(doc.id, doc.localImageFileName, doc.previewBase64) {
         mutableStateOf<Bitmap?>(null)
@@ -263,6 +267,44 @@ fun DocumentDetailScreen(
                                 contentScale = ContentScale.Fit,
                                 modifier = Modifier.fillMaxSize()
                             )
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.6f),
+                                shape = CircleShape,
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .padding(12.dp)
+                                    .clickable {
+                                        scope.launch {
+                                            val rotated = ImageStorageHelper.rotateImageFile90(
+                                                context = context,
+                                                localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
+                                                currentBitmap = scanBitmap
+                                            )
+                                            if (rotated != null) {
+                                                scanBitmap = rotated
+                                                onCopyFeedback("Photo rotated 90°")
+                                            }
+                                        }
+                                    }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.RotateRight,
+                                        contentDescription = "Rotate 90°",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Text(
+                                        text = "Rotate 90°",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = Color.White
+                                    )
+                                }
+                            }
                             Surface(
                                 color = Color.Black.copy(alpha = 0.6f),
                                 shape = CircleShape,
@@ -621,6 +663,19 @@ fun DocumentDetailScreen(
         ZoomablePhotoDialog(
             bitmap = scanBitmap!!,
             title = doc.title,
+            onRotate = {
+                scope.launch {
+                    val rotated = ImageStorageHelper.rotateImageFile90(
+                        context = context,
+                        localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
+                        currentBitmap = scanBitmap
+                    )
+                    if (rotated != null) {
+                        scanBitmap = rotated
+                        onCopyFeedback("Photo rotated 90°")
+                    }
+                }
+            },
             onDismiss = { showZoomDialog = false }
         )
     }
@@ -724,6 +779,7 @@ private fun KeyValueRow(label: String, value: String) {
 private fun ZoomablePhotoDialog(
     bitmap: Bitmap,
     title: String,
+    onRotate: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     var scale by remember { mutableFloatStateOf(1f) }
@@ -774,15 +830,34 @@ private fun ZoomablePhotoDialog(
                     color = Color.White.copy(alpha = 0.8f),
                     modifier = Modifier.padding(start = 8.dp)
                 )
-                IconButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.minimumInteractiveComponentSize()
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close zoom view",
-                        tint = Color.White
-                    )
+                    IconButton(
+                        onClick = {
+                            scale = 1f
+                            offset = Offset.Zero
+                            onRotate()
+                        },
+                        modifier = Modifier.minimumInteractiveComponentSize()
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.RotateRight,
+                            contentDescription = "Rotate 90°",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.minimumInteractiveComponentSize()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close zoom view",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }

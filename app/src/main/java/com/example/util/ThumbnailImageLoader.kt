@@ -107,4 +107,16 @@ object ThumbnailImageLoader {
             loader.memoryCache?.remove(MemoryCache.Key(cacheKey))
         }
     }
+
+    /**
+     * Clears both memory and disk caches for thumbnails.
+     */
+    @OptIn(coil.annotation.ExperimentalCoilApi::class)
+    fun clearCache(context: Context) {
+        val loader = get(context)
+        runCatching {
+            loader.memoryCache?.clear()
+            loader.diskCache?.clear()
+        }
+    }
 }

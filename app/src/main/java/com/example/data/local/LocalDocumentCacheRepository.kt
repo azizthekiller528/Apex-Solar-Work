@@ -1,10 +1,12 @@
 package com.example.data.local
 
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.util.Log
 import com.example.model.DateMatchMode
 import com.example.model.ScannedDocument
 import com.example.util.ImageStorageHelper
+import com.example.util.ThumbnailImageLoader
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
@@ -165,5 +167,43 @@ class LocalDocumentCacheRepository(
         } catch (e: Exception) {
             Log.e("LocalDocumentCache", "Failed to seed documents from assets: ${e.message}", e)
         }
+    }
+
+    /**
+     * Overwrites any sideways seed photos cached locally with upright portrait assets.
+     */
+    suspend fun syncUpdatedSeedPhotos(context: Context) = withContext(Dispatchers.IO) {
+        try {
+            val docsDir = ImageStorageHelper.getDocsDirectory(context)
+            val seedPhotos = context.assets.list("seed_photos") ?: return@withContext
+            var updatedAny = false
+            for (fileName in seedPhotos) {
+                val destFile = File(docsDir, fileName)
+                if (!destFile.exists() || destFile.length() == 0L) {
+                    try {
+                        context.assets.open("seed_photos/$fileName").use { input ->
+                            destFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                        updatedAny = true
+                    } catch (_: Exception) {}
+                } else {
+                    // Check if existing file is landscape (width > height)
+                    try {
+                        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(destFile.absolutePath, opts)
+                        if (opts.outWidth > opts.outHeight) {
+                            context.assets.open("seed_photos/$fileName").use { input ->
+                                destFile.outputStream().use { output -> input.copyTo(output) }
+                            }
+                            updatedAny = true
+                            Log.i("LocalDocumentCache", "Straightened sideways photo to portrait: $fileName")
+                        }
+                    } catch (_: Exception) {}
+                }
+            }
+            if (updatedAny) {
+                ThumbnailImageLoader.clearCache(context)
+            }
+        } catch (_: Exception) {}
     }
 }

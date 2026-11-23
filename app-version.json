@@ -1,6 +1,6 @@
 {
-  "versionCode": 6,
-  "versionName": "1.5",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller2/New-apk-/main/ApexSolarWork-latest.apk",
-  "releaseNotes": "• App renamed to Apex Solar Work\n• Shared Company Vault for all team members\n• No Google login required\n• One-tap AI Auto-Fill with Gemini\n• Duplicate slip detection\n• In-app auto update support"
+  "versionCode": 7,
+  "versionName": "1.6",
+  "apkUrl": "https://files.catbox.moe/c934bl.apk",
+  "releaseNotes": "• 1-tap 90° photo rotation\n• Single clean Document Date card\n• Structured 2-column Materials Table (10 items)\n• OCR typos corrected (Column, Anti Theft, Purlin)\n• Transport & dispatch details separated"
 }

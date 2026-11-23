@@ -148,8 +148,21 @@ fun DocFolioApp(
     val isExportingPdf by viewModel.isExportingPdf.collectAsStateWithLifecycle()
     val appUpdateState by viewModel.appUpdateState.collectAsStateWithLifecycle()
 
+    val currentAppVersionCode = remember(context) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0).versionCode.toLong()
+            }
+        } catch (_: Exception) {
+            com.example.BuildConfig.VERSION_CODE.toLong()
+        }
+    }
+
     LaunchedEffect(Unit) {
-        viewModel.checkForAppUpdates(currentVersionCode = 6L, silent = true)
+        viewModel.checkForAppUpdates(currentVersionCode = currentAppVersionCode, silent = true)
     }
 
     LaunchedEffect(effectiveUid) {
@@ -465,7 +478,7 @@ fun DocFolioApp(
                                     },
                                     onClick = {
                                         showAccountMenu = false
-                                        viewModel.checkForAppUpdates(currentVersionCode = 6L, silent = false)
+                                        viewModel.checkForAppUpdates(currentVersionCode = currentAppVersionCode, silent = false)
                                     }
                                 )
                                 if (currentUser != null) {

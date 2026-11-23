@@ -10,6 +10,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.util.UUID
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class SiteExpenseRepository(
     private val dao: SiteExpenseDao
@@ -38,46 +43,99 @@ class SiteExpenseRepository(
         dao.deleteMaterial(id)
     }
 
+    suspend fun getExpensesForDate(dateIso: String): List<SiteExpense> = withContext(Dispatchers.IO) {
+        dao.getExpensesByDate(dateIso).map { it.toModel() }
+    }
+
+    suspend fun getMaterialsForDate(dateIso: String): List<SiteMaterialRecord> = withContext(Dispatchers.IO) {
+        dao.getMaterialsByDate(dateIso).map { it.toModel() }
+    }
+
+    suspend fun getAllExpenseDates(): List<String> = withContext(Dispatchers.IO) {
+        dao.getAllExpenseDates()
+    }
+
+    suspend fun syncFromCloudDocuments(docs: List<com.example.model.ScannedDocument>) = withContext(Dispatchers.IO) {
+        val matchingDocs = docs.filter { doc ->
+            doc.id.startsWith("daily_expenses_") ||
+                doc.ocrFullText.contains(EXPENSES_DELIMITER_START)
+        }
+        if (matchingDocs.isEmpty()) return@withContext
+
+        for (doc in matchingDocs) {
+            val dateIso = doc.documentDateIso.ifBlank { doc.filedDateIso }
+            if (dateIso.isBlank()) continue
+
+            val expenses = parseExpensesFromOcrText(doc.ocrFullText)
+            val materials = parseMaterialsFromOcrText(doc.ocrFullText)
+
+            if (expenses.isNotEmpty()) {
+                val validIds = expenses.map { it.id }.filter { it.isNotBlank() }
+                if (validIds.isNotEmpty()) {
+                    dao.deleteExpensesNotIn(dateIso, validIds)
+                } else {
+                    dao.deleteExpensesForDate(dateIso)
+                }
+                dao.insertExpenses(expenses.map { SiteExpenseEntity.fromModel(it) })
+            }
+
+            if (materials.isNotEmpty()) {
+                val validMatIds = materials.map { it.id }.filter { it.isNotBlank() }
+                if (validMatIds.isNotEmpty()) {
+                    dao.deleteMaterialsNotIn(dateIso, validMatIds)
+                } else {
+                    dao.deleteMaterialsForDate(dateIso)
+                }
+                dao.insertMaterials(materials.map { SiteMaterialRecordEntity.fromModel(it) })
+            }
+        }
+    }
+
     /**
      * Seeds initial expenses and site material stock from real site logs if database is empty.
      */
     suspend fun seedInitialDataIfEmpty() = withContext(Dispatchers.IO) {
-        if (dao.getCount() == 0) {
-            val seedExpenses = listOf(
-                // 20/11/2026 - Today's Expense (Image 2)
-                SiteExpense("exp_20_1", "2026-11-20", "Driver Breakfast, Lunch & Drink", 120.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_20_2", "2026-11-20", "Iron Wire", 74.0, "Aziz", "1 kg", "HARDWARE"),
-                SiteExpense("exp_20_3", "2026-11-20", "Sariya Ring", 333.0, "Aziz", "111 pcs", "HARDWARE"),
-                SiteExpense("exp_20_4", "2026-11-20", "Sariya Ring", 75.0, "Aziz", "25 pcs from Store", "HARDWARE"),
-                SiteExpense("exp_20_5", "2026-11-20", "Diesel", 1000.0, "Aziz", "", "FUEL"),
+        val seedExpenses = listOf(
+            // 23/11/2026 - Today's Expenses (Image 7)
+            SiteExpense("exp_23_1", "2026-11-23", "Diesel", 2500.0, "Aziz", "", "FUEL"),
+            SiteExpense("exp_23_2", "2026-11-23", "Loading Solar Panels onto the Pickup", 320.0, "Aziz", "Rate: ₹8 per piece | Pieces: 40", "OTHER"),
+            SiteExpense("exp_23_3", "2026-11-23", "Tea (Chai) for Labour and Driver", 110.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_23_4", "2026-11-23", "Amount Given to Nadeem Bhai", 200.0, "Aziz", "", "OTHER"),
+            SiteExpense("exp_23_5", "2026-11-23", "Driver Dinner and Cold Drink", 190.0, "Aziz", "", "FOOD"),
 
-                // 19/11/2026 - Yesterday's Expense (Image 1)
-                SiteExpense("exp_19_1", "2026-11-19", "Driver Breakfast & Lunch", 90.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_19_2", "2026-11-19", "Diesel", 1000.0, "Aziz", "", "FUEL"),
+            // 20/11/2026 - Today's Expense (Image 2)
+            SiteExpense("exp_20_1", "2026-11-20", "Driver Breakfast, Lunch & Drink", 120.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_20_2", "2026-11-20", "Iron Wire", 74.0, "Aziz", "1 kg", "HARDWARE"),
+            SiteExpense("exp_20_3", "2026-11-20", "Sariya Ring", 333.0, "Aziz", "111 pcs", "HARDWARE"),
+            SiteExpense("exp_20_4", "2026-11-20", "Sariya Ring", 75.0, "Aziz", "25 pcs from Store", "HARDWARE"),
+            SiteExpense("exp_20_5", "2026-11-20", "Diesel", 1000.0, "Aziz", "", "FUEL"),
 
-                // 18/11/2026 - Yesterday's Expense (Image 3)
-                SiteExpense("exp_18_1", "2026-11-18", "Driver Breakfast", 70.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_18_2", "2026-11-18", "Driver Lunch", 100.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_18_3", "2026-11-18", "Diesel", 1500.0, "Aziz", "", "FUEL"),
-                SiteExpense("exp_18_4", "2026-11-18", "Petrol", 300.0, "Aziz", "", "FUEL"),
+            // 19/11/2026 - Yesterday's Expense (Image 1)
+            SiteExpense("exp_19_1", "2026-11-19", "Driver Breakfast & Lunch", 90.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_19_2", "2026-11-19", "Diesel", 1000.0, "Aziz", "", "FUEL"),
 
-                // 17/11/2026 - Today Expense (Image 5 - with Aziz and Nadeem split!)
-                SiteExpense("exp_17_1", "2026-11-17", "Diesel", 1000.0, "Aziz", "", "FUEL"),
-                SiteExpense("exp_17_2", "2026-11-17", "Augr Machine Repair", 100.0, "Nadeem", "", "REPAIR"),
-                SiteExpense("exp_17_3", "2026-11-17", "Pickup Welding", 100.0, "Nadeem", "", "REPAIR"),
-                SiteExpense("exp_17_4", "2026-11-17", "Chuna", 30.0, "Aziz", "2 kg", "OTHER"),
-                SiteExpense("exp_17_5", "2026-11-17", "Lock and Key", 50.0, "Aziz", "", "HARDWARE"),
-                SiteExpense("exp_17_6", "2026-11-17", "Driver Lunch", 140.0, "Aziz", "", "FOOD"),
+            // 18/11/2026 - Yesterday's Expense (Image 3)
+            SiteExpense("exp_18_1", "2026-11-18", "Driver Breakfast", 70.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_18_2", "2026-11-18", "Driver Lunch", 100.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_18_3", "2026-11-18", "Diesel", 1500.0, "Aziz", "", "FUEL"),
+            SiteExpense("exp_18_4", "2026-11-18", "Petrol", 300.0, "Aziz", "", "FUEL"),
 
-                // 16/11/2026 - Yesterday's Expense (Image 6)
-                SiteExpense("exp_16_1", "2026-11-16", "Driver Lunch", 60.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_16_2", "2026-11-16", "Labour Chai Pani", 50.0, "Aziz", "", "FOOD"),
-                SiteExpense("exp_16_3", "2026-11-16", "Diesel", 500.0, "Aziz", "", "FUEL"),
-                SiteExpense("exp_16_4", "2026-11-16", "Sariya and Wire", 790.0, "Aziz", "1 kg Total", "HARDWARE"),
-                SiteExpense("exp_16_5", "2026-11-16", "Sariya Ring Cutting", 88.0, "Aziz", "", "HARDWARE")
-            )
-            dao.insertExpenses(seedExpenses.map { SiteExpenseEntity.fromModel(it) })
-        }
+            // 17/11/2026 - Today Expense (Image 5 - with Aziz and Nadeem split!)
+            SiteExpense("exp_17_1", "2026-11-17", "Diesel", 1000.0, "Aziz", "", "FUEL"),
+            SiteExpense("exp_17_2", "2026-11-17", "Augr Machine Repair", 100.0, "Nadeem", "", "REPAIR"),
+            SiteExpense("exp_17_3", "2026-11-17", "Pickup Welding", 100.0, "Nadeem", "", "REPAIR"),
+            SiteExpense("exp_17_4", "2026-11-17", "Chuna", 30.0, "Aziz", "2 kg", "OTHER"),
+            SiteExpense("exp_17_5", "2026-11-17", "Lock and Key", 50.0, "Aziz", "", "HARDWARE"),
+            SiteExpense("exp_17_6", "2026-11-17", "Driver Lunch", 140.0, "Aziz", "", "FOOD"),
+
+            // 16/11/2026 - Yesterday's Expense (Image 6)
+            SiteExpense("exp_16_1", "2026-11-16", "Driver Lunch", 60.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_16_2", "2026-11-16", "Labour Chai Pani", 50.0, "Aziz", "", "FOOD"),
+            SiteExpense("exp_16_3", "2026-11-16", "Diesel", 500.0, "Aziz", "", "FUEL"),
+            SiteExpense("exp_16_4", "2026-11-16", "Sariya and Wire", 790.0, "Aziz", "1 kg Total", "HARDWARE"),
+            SiteExpense("exp_16_5", "2026-11-16", "Sariya Ring Cutting", 88.0, "Aziz", "", "HARDWARE")
+        )
+        dao.insertDefaultExpenses(seedExpenses.map { SiteExpenseEntity.fromModel(it) })
 
         if (dao.getMaterialCount() == 0) {
             val seedMaterials = listOf(
@@ -137,5 +195,140 @@ class SiteExpenseRepository(
         }
 
         return sb.toString().trim()
+    }
+
+    companion object {
+        const val EXPENSES_DELIMITER_START = "=== APEX_EXPENSES_DATA_V1 ==="
+        const val MATERIALS_DELIMITER_START = "=== APEX_MATERIALS_DATA_V1 ==="
+        const val DATA_DELIMITER_END = "=== END_APEX_DATA ==="
+
+        fun serializeExpensesToJson(expenses: List<SiteExpense>): String {
+            val array = JSONArray()
+            for (exp in expenses) {
+                val obj = JSONObject()
+                obj.put("id", exp.id)
+                obj.put("dateIso", exp.dateIso)
+                obj.put("title", exp.title)
+                obj.put("amount", exp.amount)
+                obj.put("paidBy", exp.paidBy)
+                obj.put("quantityNote", exp.quantityNote)
+                obj.put("category", exp.category)
+                array.put(obj)
+            }
+            return array.toString()
+        }
+
+        fun serializeMaterialsToJson(materials: List<SiteMaterialRecord>): String {
+            val array = JSONArray()
+            for (mat in materials) {
+                val obj = JSONObject()
+                obj.put("id", mat.id)
+                obj.put("dateIso", mat.dateIso)
+                obj.put("sNo", mat.sNo)
+                obj.put("itemName", mat.itemName)
+                obj.put("qtyOut", mat.qtyOut)
+                obj.put("qtyInStore", mat.qtyInStore)
+                obj.put("remarks", mat.remarks)
+                array.put(obj)
+            }
+            return array.toString()
+        }
+
+        fun parseExpensesFromOcrText(ocrText: String): List<SiteExpense> {
+            if (!ocrText.contains(EXPENSES_DELIMITER_START)) return emptyList()
+            val startIndex = ocrText.indexOf(EXPENSES_DELIMITER_START) + EXPENSES_DELIMITER_START.length
+            val endIndex = if (ocrText.contains(MATERIALS_DELIMITER_START)) {
+                ocrText.indexOf(MATERIALS_DELIMITER_START)
+            } else if (ocrText.contains(DATA_DELIMITER_END)) {
+                ocrText.indexOf(DATA_DELIMITER_END)
+            } else {
+                ocrText.length
+            }
+            val jsonStr = ocrText.substring(startIndex, endIndex).trim()
+            if (jsonStr.isBlank() || jsonStr == "[]") return emptyList()
+
+            val result = mutableListOf<SiteExpense>()
+            return try {
+                val array = JSONArray(jsonStr)
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    result.add(
+                        SiteExpense(
+                            id = obj.optString("id", ""),
+                            dateIso = obj.optString("dateIso", ""),
+                            title = obj.optString("title", ""),
+                            amount = obj.optDouble("amount", 0.0),
+                            paidBy = obj.optString("paidBy", "Aziz"),
+                            quantityNote = obj.optString("quantityNote", ""),
+                            category = obj.optString("category", "OTHER")
+                        )
+                    )
+                }
+                result
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        fun parseMaterialsFromOcrText(ocrText: String): List<SiteMaterialRecord> {
+            if (!ocrText.contains(MATERIALS_DELIMITER_START)) return emptyList()
+            val startIndex = ocrText.indexOf(MATERIALS_DELIMITER_START) + MATERIALS_DELIMITER_START.length
+            val endIndex = if (ocrText.contains(DATA_DELIMITER_END)) {
+                ocrText.indexOf(DATA_DELIMITER_END)
+            } else {
+                ocrText.length
+            }
+            val jsonStr = ocrText.substring(startIndex, endIndex).trim()
+            if (jsonStr.isBlank() || jsonStr == "[]") return emptyList()
+
+            val result = mutableListOf<SiteMaterialRecord>()
+            return try {
+                val array = JSONArray(jsonStr)
+                for (i in 0 until array.length()) {
+                    val obj = array.getJSONObject(i)
+                    result.add(
+                        SiteMaterialRecord(
+                            id = obj.optString("id", ""),
+                            dateIso = obj.optString("dateIso", ""),
+                            sNo = obj.optInt("sNo", i + 1),
+                            itemName = obj.optString("itemName", ""),
+                            qtyOut = obj.optString("qtyOut", ""),
+                            qtyInStore = obj.optString("qtyInStore", ""),
+                            remarks = obj.optString("remarks", "")
+                        )
+                    )
+                }
+                result
+            } catch (_: Exception) {
+                emptyList()
+            }
+        }
+
+        fun formatIsoDateHeader(iso: String): String {
+            return try {
+                val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                val formatter = SimpleDateFormat("dd MMMM yyyy", Locale.US)
+                val parsed = parser.parse(iso)
+                if (parsed != null) formatter.format(parsed) else iso
+            } catch (_: Exception) {
+                iso
+            }
+        }
+
+        fun formatChipDate(iso: String): String {
+            return try {
+                val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                val parsed = parser.parse(iso) ?: return iso
+                val today = parser.format(Date())
+                val yesterday = parser.format(Date(System.currentTimeMillis() - 86400000L))
+                when (iso) {
+                    today -> "Today"
+                    yesterday -> "Yesterday"
+                    else -> SimpleDateFormat("dd MMM", Locale.US).format(parsed)
+                }
+            } catch (_: Exception) {
+                iso
+            }
+        }
     }
 }

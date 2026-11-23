@@ -236,6 +236,26 @@ class DocumentRepository(
             }
     }
 
+    suspend fun getDocument(docId: String): Result<ScannedDocument?> {
+        val docRef = companyCollection.document(docId)
+        val docPath = docRef.path
+        return try {
+            require(docId.isNotBlank() && docId.matches(ID_REGEX)) { "Invalid document ID." }
+            val snapshot = docRef.get().await()
+            if (snapshot.exists()) {
+                val doc = snapshot.toObject(ScannedDocument::class.java)
+                Result.success(doc)
+            } else {
+                Result.success(null)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.GET, docPath)
+            Result.failure(e)
+        }
+    }
+
     suspend fun createDocument(docId: String, doc: ScannedDocument): Result<String> {
         val docRef = companyCollection.document(docId)
         val docPath = docRef.path

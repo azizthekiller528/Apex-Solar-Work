@@ -181,13 +181,24 @@ class DocFolioViewModel(
         repository.observeDocuments(currentUserId)
             .map<List<ScannedDocument>, List<ScannedDocument>?> { it }
             .onEach { docs ->
-                if (localCache != null && !docs.isNullOrEmpty()) {
-                    try {
-                        localCache.syncFromCloud(currentUserId, docs, docsDirPath)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Local Room cache sync warning: ${e.message}")
+                if (!docs.isNullOrEmpty()) {
+                    if (localCache != null) {
+                        try {
+                            localCache.syncFromCloud(currentUserId, docs, docsDirPath)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Local Room cache sync warning: ${e.message}")
+                        }
+                    }
+                    if (siteExpenseRepository != null) {
+                        try {
+                            siteExpenseRepository.syncFromCloudDocuments(docs)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Site expenses cloud sync warning: ${e.message}")
+                        }
                     }
                 }
             }
@@ -287,6 +298,7 @@ class DocFolioViewModel(
         viewModelScope.launch {
             try {
                 siteExpenseRepository?.seedInitialDataIfEmpty()
+                syncAllLocalDaysToCloud()
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to seed initial site expenses: ${e.message}")
             }
@@ -1041,17 +1053,21 @@ class DocFolioViewModel(
             try {
                 siteExpenseRepository?.addExpense(expense)
                 _events.emit(OneShotEvent.ShowMessage("Expense added"))
+                syncDateToCloud(expense.dateIso)
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to add expense: ${e.message}"))
             }
         }
     }
 
-    fun deleteExpense(id: String) {
+    fun deleteExpense(id: String, dateIso: String = "") {
         viewModelScope.launch {
             try {
                 siteExpenseRepository?.deleteExpense(id)
                 _events.emit(OneShotEvent.ShowMessage("Expense deleted"))
+                if (dateIso.isNotBlank()) {
+                    syncDateToCloud(dateIso)
+                }
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to delete expense: ${e.message}"))
             }
@@ -1063,20 +1079,122 @@ class DocFolioViewModel(
             try {
                 siteExpenseRepository?.addMaterial(record)
                 _events.emit(OneShotEvent.ShowMessage("Material record added"))
+                syncDateToCloud(record.dateIso)
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to add material: ${e.message}"))
             }
         }
     }
 
-    fun deleteMaterial(id: String) {
+    fun deleteMaterial(id: String, dateIso: String = "") {
         viewModelScope.launch {
             try {
                 siteExpenseRepository?.deleteMaterial(id)
                 _events.emit(OneShotEvent.ShowMessage("Material record deleted"))
+                if (dateIso.isNotBlank()) {
+                    syncDateToCloud(dateIso)
+                }
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to delete material: ${e.message}"))
             }
+        }
+    }
+
+    fun syncDateToCloud(dateIso: String) {
+        if (dateIso.isBlank()) return
+        viewModelScope.launch {
+            val repo = siteExpenseRepository ?: return@launch
+            try {
+                val expenses = repo.getExpensesForDate(dateIso)
+                val materials = repo.getMaterialsForDate(dateIso)
+                val docId = "daily_expenses_${dateIso.replace("-", "_")}"
+
+                if (expenses.isEmpty() && materials.isEmpty()) {
+                    return@launch
+                }
+
+                val header = SiteExpenseRepository.formatIsoDateHeader(dateIso)
+                val totalAmt = expenses.sumOf { it.amount }.toInt()
+                val title = "Daily Kharcha — $header".take(200)
+                val summary = "Daily site expense sheet for $header. Total: ₹$totalAmt. ${expenses.size} expenses, ${materials.size} materials."
+                    .take(1000)
+
+                val extractedFields = mutableListOf(
+                    "Date: $dateIso",
+                    "Total: ₹$totalAmt"
+                )
+                expenses.take(25).forEach { exp ->
+                    val qtyStr = if (exp.quantityNote.isNotBlank()) " (${exp.quantityNote})" else ""
+                    val payerStr = if (exp.paidBy.isNotBlank()) " [${exp.paidBy}]" else ""
+                    extractedFields.add("${exp.title}$qtyStr: ₹${exp.amount.toInt()}$payerStr".take(290))
+                }
+
+                val ocrText = buildString {
+                    append(SiteExpenseRepository.EXPENSES_DELIMITER_START).append("\n")
+                    append(SiteExpenseRepository.serializeExpensesToJson(expenses)).append("\n")
+                    append(SiteExpenseRepository.MATERIALS_DELIMITER_START).append("\n")
+                    append(SiteExpenseRepository.serializeMaterialsToJson(materials)).append("\n")
+                    append(SiteExpenseRepository.DATA_DELIMITER_END).append("\n\n")
+                    append(repo.formatWhatsAppReport(header, expenses, materials))
+                }.take(50000)
+
+                val existingDoc = repository.getDocument(docId).getOrNull()
+                if (existingDoc != null) {
+                    repository.updateDocumentMetadata(
+                        docId = docId,
+                        title = title,
+                        category = DocumentCategory.SITE_REPORT,
+                        documentDateIso = dateIso,
+                        filedDateIso = dateIso,
+                        referenceNumber = "EXP-${dateIso.replace("-", "")}",
+                        organization = "Apex Solar Work",
+                        contractorOrParty = "Aziz (Site Supervisor)",
+                        summary = summary,
+                        extractedFields = extractedFields,
+                        ocrFullText = ocrText,
+                        localPdfFileName = existingDoc.localPdfFileName
+                    )
+                } else {
+                    val newDoc = ScannedDocument(
+                        id = docId,
+                        userId = "apex_team",
+                        title = title,
+                        category = DocumentCategory.SITE_REPORT.name,
+                        documentDateIso = dateIso,
+                        filedDateIso = dateIso,
+                        referenceNumber = "EXP-${dateIso.replace("-", "")}",
+                        organization = "Apex Solar Work",
+                        contractorOrParty = "Aziz (Site Supervisor)",
+                        summary = summary,
+                        extractedFields = extractedFields,
+                        ocrFullText = ocrText,
+                        localImageFileName = "",
+                        localPdfFileName = "",
+                        previewBase64 = "",
+                        pageCount = 1L,
+                        starred = false
+                    )
+                    repository.createDocument(docId, newDoc)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to sync daily expenses to cloud for $dateIso: ${e.message}")
+            }
+        }
+    }
+
+    private suspend fun syncAllLocalDaysToCloud() {
+        val repo = siteExpenseRepository ?: return
+        try {
+            val dates = repo.getAllExpenseDates()
+            for (dateIso in dates) {
+                val docId = "daily_expenses_${dateIso.replace("-", "_")}"
+                val existing = repository.getDocument(docId).getOrNull()
+                if (existing == null) {
+                    syncDateToCloud(dateIso)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to sync all local days to cloud: ${e.message}")
         }
     }
 

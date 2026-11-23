@@ -39,6 +39,7 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,9 +85,9 @@ fun ExpensesScreen(
     selectedDateIso: String,
     onSelectDate: (String) -> Unit,
     onAddExpense: (SiteExpense) -> Unit,
-    onDeleteExpense: (String) -> Unit,
+    onDeleteExpense: (id: String, dateIso: String) -> Unit,
     onAddMaterial: (SiteMaterialRecord) -> Unit,
-    onDeleteMaterial: (String) -> Unit,
+    onDeleteMaterial: (id: String, dateIso: String) -> Unit,
     onShareReport: (context: Context, dateFormatted: String, expenses: List<SiteExpense>, materials: List<SiteMaterialRecord>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -98,11 +99,11 @@ fun ExpensesScreen(
 
     // Collect all unique dates from expenses and materials plus selected date, sorted descending
     val availableDates = remember(allExpenses, allMaterials, selectedDateIso) {
-        val dates = (allExpenses.map { it.dateIso } + allMaterials.map { it.dateIso } + (if (selectedDateIso.isNotBlank()) listOf(selectedDateIso) else emptyList()))
+        val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        (listOf(todayIso) + allExpenses.map { it.dateIso } + allMaterials.map { it.dateIso } + (if (selectedDateIso.isNotBlank()) listOf(selectedDateIso) else emptyList()))
             .filter { it.isNotBlank() }
             .distinct()
             .sortedDescending()
-        if (dates.isEmpty()) listOf(SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())) else dates
     }
 
     // Determine current effective date
@@ -376,7 +377,7 @@ fun ExpensesScreen(
                         items(currentDayExpenses, key = { it.id }) { expense ->
                             ExpenseItemRow(
                                 expense = expense,
-                                onDelete = { onDeleteExpense(expense.id) }
+                                onDelete = { onDeleteExpense(expense.id, expense.dateIso) }
                             )
                         }
                     }
@@ -424,7 +425,7 @@ fun ExpensesScreen(
                         items(currentDayMaterials, key = { it.id }) { mat ->
                             MaterialItemRow(
                                 material = mat,
-                                onDelete = { onDeleteMaterial(mat.id) }
+                                onDelete = { onDeleteMaterial(mat.id, mat.dateIso) }
                             )
                         }
                     }
@@ -469,6 +470,7 @@ fun ExpensesScreen(
             onDismiss = { showAddExpenseDialog = false },
             onConfirm = { newExpense ->
                 onAddExpense(newExpense)
+                onSelectDate(newExpense.dateIso)
                 showAddExpenseDialog = false
             }
         )
@@ -483,6 +485,7 @@ fun ExpensesScreen(
             onDismiss = { showAddMaterialDialog = false },
             onConfirm = { newMat ->
                 onAddMaterial(newMat)
+                onSelectDate(newMat.dateIso)
                 showAddMaterialDialog = false
             }
         )
@@ -774,12 +777,15 @@ private fun EmptyStateNotice(title: String, message: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddExpenseDialog(
     defaultDateIso: String,
     onDismiss: () -> Unit,
     onConfirm: (SiteExpense) -> Unit
 ) {
+    var expenseDateIso by remember { mutableStateOf(defaultDateIso) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
     var amountText by remember { mutableStateOf("") }
     var quantityNote by remember { mutableStateOf("") }
@@ -793,6 +799,59 @@ private fun AddExpenseDialog(
         title = { Text("Add Daily Expense", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Dedicated Date Selector Row
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Date: " + formatChipDate(expenseDateIso),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = expenseDateIso,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                            if (expenseDateIso != todayIso) {
+                                OutlinedButton(
+                                    onClick = { expenseDateIso = todayIso },
+                                    modifier = Modifier.height(30.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("Today", fontSize = 11.sp)
+                                }
+                            }
+                            FilledTonalButton(
+                                onClick = { showDatePickerDialog = true },
+                                modifier = Modifier.height(30.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Pick Date",
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Change", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -873,7 +932,7 @@ private fun AddExpenseDialog(
                         onConfirm(
                             SiteExpense(
                                 id = "",
-                                dateIso = defaultDateIso,
+                                dateIso = expenseDateIso,
                                 title = title.trim(),
                                 amount = amt,
                                 paidBy = paidBy,
@@ -894,8 +953,40 @@ private fun AddExpenseDialog(
             }
         }
     )
+
+    if (showDatePickerDialog) {
+        val initialMillis = remember(expenseDateIso) {
+            com.example.util.DateSearchParser.isoToUtcMillis(expenseDateIso)
+                ?: com.example.util.DateSearchParser.isoToUtcMillis(com.example.util.DateSearchParser.todayIso())
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val millis = datePickerState.selectedDateMillis
+                        if (millis != null) {
+                            expenseDateIso = com.example.util.DateSearchParser.utcMillisToIso(millis)
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddMaterialDialog(
     defaultDateIso: String,
@@ -903,6 +994,8 @@ private fun AddMaterialDialog(
     onDismiss: () -> Unit,
     onConfirm: (SiteMaterialRecord) -> Unit
 ) {
+    var materialDateIso by remember { mutableStateOf(defaultDateIso) }
+    var showDatePickerDialog by remember { mutableStateOf(false) }
     var itemName by remember { mutableStateOf("") }
     var qtyOut by remember { mutableStateOf("") }
     var qtyInStore by remember { mutableStateOf("") }
@@ -915,6 +1008,59 @@ private fun AddMaterialDialog(
         title = { Text("Add Material Record", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Dedicated Date Selector Row
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Date: " + formatChipDate(materialDateIso),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = materialDateIso,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val todayIso = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+                            if (materialDateIso != todayIso) {
+                                OutlinedButton(
+                                    onClick = { materialDateIso = todayIso },
+                                    modifier = Modifier.height(30.dp),
+                                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("Today", fontSize = 11.sp)
+                                }
+                            }
+                            FilledTonalButton(
+                                onClick = { showDatePickerDialog = true },
+                                modifier = Modifier.height(30.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Pick Date",
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Change", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = itemName,
                     onValueChange = { itemName = it },
@@ -979,7 +1125,7 @@ private fun AddMaterialDialog(
                         onConfirm(
                             SiteMaterialRecord(
                                 id = "",
-                                dateIso = defaultDateIso,
+                                dateIso = materialDateIso,
                                 sNo = defaultSNo,
                                 itemName = itemName.trim(),
                                 qtyOut = qtyOut.trim(),
@@ -1000,6 +1146,37 @@ private fun AddMaterialDialog(
             }
         }
     )
+
+    if (showDatePickerDialog) {
+        val initialMillis = remember(materialDateIso) {
+            com.example.util.DateSearchParser.isoToUtcMillis(materialDateIso)
+                ?: com.example.util.DateSearchParser.isoToUtcMillis(com.example.util.DateSearchParser.todayIso())
+        }
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePickerDialog = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val millis = datePickerState.selectedDateMillis
+                        if (millis != null) {
+                            materialDateIso = com.example.util.DateSearchParser.utcMillisToIso(millis)
+                        }
+                        showDatePickerDialog = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePickerDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
 }
 
 private fun formatIsoDateHeader(iso: String): String {

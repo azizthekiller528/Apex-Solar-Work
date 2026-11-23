@@ -284,12 +284,20 @@ class DocFolioPureJvmTest {
             override fun getMaterialsByDateFlow(dateIso: String) = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteMaterialRecordEntity>>()
             override suspend fun insertExpense(expense: com.example.data.local.SiteExpenseEntity) {}
             override suspend fun insertExpenses(expenses: List<com.example.data.local.SiteExpenseEntity>) {}
+            override suspend fun insertDefaultExpenses(expenses: List<com.example.data.local.SiteExpenseEntity>) {}
             override suspend fun deleteExpense(id: String) {}
             override suspend fun insertMaterial(material: com.example.data.local.SiteMaterialRecordEntity) {}
             override suspend fun insertMaterials(materials: List<com.example.data.local.SiteMaterialRecordEntity>) {}
             override suspend fun deleteMaterial(id: String) {}
             override suspend fun getCount() = 0
             override suspend fun getMaterialCount() = 0
+            override suspend fun getExpensesByDate(dateIso: String) = emptyList<com.example.data.local.SiteExpenseEntity>()
+            override suspend fun getAllExpenseDates() = emptyList<String>()
+            override suspend fun deleteExpensesForDate(dateIso: String) {}
+            override suspend fun deleteExpensesNotIn(dateIso: String, validIds: List<String>) {}
+            override suspend fun getMaterialsByDate(dateIso: String) = emptyList<com.example.data.local.SiteMaterialRecordEntity>()
+            override suspend fun deleteMaterialsForDate(dateIso: String) {}
+            override suspend fun deleteMaterialsNotIn(dateIso: String, validIds: List<String>) {}
         }
         val repo = com.example.data.SiteExpenseRepository(dummyDao)
         val report = repo.formatWhatsAppReport("17 November 2026", expenses, materials)
@@ -306,6 +314,22 @@ class DocFolioPureJvmTest {
         val blankReport = repo.formatWhatsAppReport("17 November 2026", blankPayerExpenses, emptyList())
         assertTrue(blankReport.contains("TOTAL EXPENSE: ₹50"))
         assertTrue(blankReport.contains("Other:* ₹50"))
+
+        val nov23Expenses = listOf(
+            com.example.data.model.SiteExpense("exp_23_1", "2026-11-23", "Diesel", 2500.0, "Aziz", "", "FUEL"),
+            com.example.data.model.SiteExpense("exp_23_2", "2026-11-23", "Loading Solar Panels onto the Pickup", 320.0, "Aziz", "Rate: ₹8 per piece | Pieces: 40", "OTHER"),
+            com.example.data.model.SiteExpense("exp_23_3", "2026-11-23", "Tea (Chai) for Labour and Driver", 110.0, "Aziz", "", "FOOD"),
+            com.example.data.model.SiteExpense("exp_23_4", "2026-11-23", "Amount Given to Nadeem Bhai", 200.0, "Aziz", "", "OTHER"),
+            com.example.data.model.SiteExpense("exp_23_5", "2026-11-23", "Driver Dinner and Cold Drink", 190.0, "Aziz", "", "FOOD")
+        )
+        val nov23Report = repo.formatWhatsAppReport("23 November 2026", nov23Expenses, emptyList())
+        assertTrue(nov23Report.contains("TOTAL EXPENSE: ₹3320"))
+        assertTrue(nov23Report.contains("Paid by Aziz:* ₹3320"))
+        assertTrue(nov23Report.contains("Diesel — *₹2500*"))
+        assertTrue(nov23Report.contains("Loading Solar Panels onto the Pickup (Rate: ₹8 per piece | Pieces: 40) — *₹320*"))
+        assertTrue(nov23Report.contains("Tea (Chai) for Labour and Driver — *₹110*"))
+        assertTrue(nov23Report.contains("Amount Given to Nadeem Bhai — *₹200*"))
+        assertTrue(nov23Report.contains("Driver Dinner and Cold Drink — *₹190*"))
     }
 
     @Test
@@ -361,5 +385,80 @@ class DocFolioPureJvmTest {
         val dev2 = root3.getJSONObject("devices").getJSONObject("dev_beta")
         assertEquals("Xiaomi Redmi Note 12", dev2.getString("deviceModel"))
         assertEquals(1, dev2.getInt("pingCount"))
+    }
+
+    @Test
+    fun siteExpenseRepository_serializeAndParseExpensesJson_preservesAllFieldsAndDelimiters() {
+        val originalExpenses = listOf(
+            com.example.data.model.SiteExpense("exp_1", "2026-11-23", "Diesel", 2500.0, "Aziz", "", "FUEL"),
+            com.example.data.model.SiteExpense("exp_2", "2026-11-23", "Loading Solar Panels", 320.0, "Aziz", "40 pcs", "OTHER"),
+            com.example.data.model.SiteExpense("exp_3", "2026-11-23", "Chai", 110.0, "Aziz", "", "FOOD")
+        )
+        val originalMaterials = listOf(
+            com.example.data.model.SiteMaterialRecord("mat_1", "2026-11-23", 1, "J Bolt", "96", "53", "Near Gate 2")
+        )
+
+        val expJson = com.example.data.SiteExpenseRepository.serializeExpensesToJson(originalExpenses)
+        val matJson = com.example.data.SiteExpenseRepository.serializeMaterialsToJson(originalMaterials)
+
+        val ocrFullText = buildString {
+            append(com.example.data.SiteExpenseRepository.EXPENSES_DELIMITER_START).append("\n")
+            append(expJson).append("\n")
+            append(com.example.data.SiteExpenseRepository.MATERIALS_DELIMITER_START).append("\n")
+            append(matJson).append("\n")
+            append(com.example.data.SiteExpenseRepository.DATA_DELIMITER_END).append("\n\n")
+            append("Human readable text summary here: Total ₹2,930")
+        }
+
+        val parsedExpenses = com.example.data.SiteExpenseRepository.parseExpensesFromOcrText(ocrFullText)
+        val parsedMaterials = com.example.data.SiteExpenseRepository.parseMaterialsFromOcrText(ocrFullText)
+
+        assertEquals(3, parsedExpenses.size)
+        assertEquals("Diesel", parsedExpenses[0].title)
+        assertEquals(2500.0, parsedExpenses[0].amount, 0.001)
+        assertEquals("Aziz", parsedExpenses[0].paidBy)
+        assertEquals("FUEL", parsedExpenses[0].category)
+
+        assertEquals("Loading Solar Panels", parsedExpenses[1].title)
+        assertEquals("40 pcs", parsedExpenses[1].quantityNote)
+
+        assertEquals(1, parsedMaterials.size)
+        assertEquals("J Bolt", parsedMaterials[0].itemName)
+        assertEquals("96", parsedMaterials[0].qtyOut)
+        assertEquals("53", parsedMaterials[0].qtyInStore)
+        assertEquals("Near Gate 2", parsedMaterials[0].remarks)
+    }
+
+    @Test
+    fun siteExpenseRepository_parseFromOcrText_handlesCorruptedOrEmptyGracefully() {
+        // Plain OCR text without delimiters should return empty lists without crashing
+        val plainText = "Invoice from ABC Suppliers. Date: 2026-11-23. Total: 5000"
+        val expenses = com.example.data.SiteExpenseRepository.parseExpensesFromOcrText(plainText)
+        val materials = com.example.data.SiteExpenseRepository.parseMaterialsFromOcrText(plainText)
+        assertTrue(expenses.isEmpty())
+        assertTrue(materials.isEmpty())
+
+        // Delimiter present but malformed JSON
+        val malformedText = """
+            === APEX_EXPENSES_DATA_V1 ===
+            not a json array
+            === APEX_MATERIALS_DATA_V1 ===
+            {invalid json}
+            === END_APEX_DATA ===
+        """.trimIndent()
+        val malformedExp = com.example.data.SiteExpenseRepository.parseExpensesFromOcrText(malformedText)
+        val malformedMat = com.example.data.SiteExpenseRepository.parseMaterialsFromOcrText(malformedText)
+        assertTrue(malformedExp.isEmpty())
+        assertTrue(malformedMat.isEmpty())
+    }
+
+    @Test
+    fun siteExpenseRepository_formatIsoDateHeaderAndChipDate_formatsProperly() {
+        val header = com.example.data.SiteExpenseRepository.formatIsoDateHeader("2026-11-23")
+        assertEquals("23 November 2026", header)
+
+        val chip = com.example.data.SiteExpenseRepository.formatChipDate("2026-11-23")
+        assertNotNull(chip)
+        assertTrue(chip.isNotBlank())
     }
 }

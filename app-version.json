@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "2.1",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.1.apk",
-  "sha256": "7e48ddecafe25177639ec9ccf8fa24dba36dafb1e1ed41bf9e768aa211a2144f",
+  "versionCode": 13,
+  "versionName": "2.2",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.2.apk",
+  "sha256": "0e74baff7b63ed48712f677cb14ca2dc3b26559168de12362049d28a03b7aaab",
   "sizeBytes": 46341179,
-  "releaseNotes": "• Fix: Restored all 35 indexed slips and site documents in Vault\n• Fix: Combined cloud sync with local permanent archive\n• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai\n• In-dialog date picker and quick 'Today' selector\n• Smooth date chip auto-scrolling & scrollable dialogs"
+  "releaseNotes": "• Fix: Instant photo display for all 35 material slips with zero blank screens\n• Fix: Robust on-demand asset fallback unpacking\n• Seamless unified Vault list (42 documents total)\n• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai"
 }

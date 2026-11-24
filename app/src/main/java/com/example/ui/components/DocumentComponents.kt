@@ -139,7 +139,7 @@ fun DocumentThumbnail(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val hasImageSource = doc.localImageFileName.isNotBlank() || doc.previewBase64.isNotBlank()
+    val hasImageSource = doc.localImageFileName.isNotBlank() || doc.previewBase64.isNotBlank() || doc.id.startsWith("apex_doc_")
     val cacheKey = remember(
         doc.id,
         doc.localImageFileName,

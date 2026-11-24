@@ -88,10 +88,62 @@ object ImageStorageHelper {
             file
         }
 
-    fun getLocalFile(context: Context, fileName: String): File? {
-        if (fileName.isBlank()) return null
-        val file = File(getDocsDirectory(context), fileName)
-        return if (file.exists() && file.length() > 0L) file else null
+    fun getLocalFile(context: Context, fileName: String, docId: String = ""): File? {
+        if (fileName.isBlank() && docId.isBlank()) return null
+        val docsDir = getDocsDirectory(context)
+        val candidateNames = linkedSetOf<String>()
+        if (fileName.isNotBlank()) {
+            candidateNames.add(fileName)
+            if (!fileName.endsWith(".jpg")) candidateNames.add("$fileName.jpg")
+        }
+        if (docId.isNotBlank()) {
+            candidateNames.add("$docId.jpg")
+            candidateNames.add(docId)
+        }
+
+        // 1. Check if already exists on disk
+        for (name in candidateNames) {
+            val file = File(docsDir, name)
+            if (file.exists() && file.length() > 0L) return file
+        }
+
+        // 2. Fallback: Check if bundled in assets/seed_photos
+        for (name in candidateNames) {
+            val destFile = File(docsDir, if (name.endsWith(".jpg")) name else "$name.jpg")
+            try {
+                context.assets.open("seed_photos/$name").use { input ->
+                    destFile.outputStream().use { output -> input.copyTo(output) }
+                }
+                if (destFile.exists() && destFile.length() > 0L) return destFile
+            } catch (_: Exception) {}
+            if (!name.endsWith(".jpg")) {
+                try {
+                    context.assets.open("seed_photos/$name.jpg").use { input ->
+                        destFile.outputStream().use { output -> input.copyTo(output) }
+                    }
+                    if (destFile.exists() && destFile.length() > 0L) return destFile
+                } catch (_: Exception) {}
+            }
+        }
+
+        // 3. Match prefix in seed_photos (e.g. docId = "apex_doc_01" matches "apex_doc_01_slip_13703.jpg")
+        if (docId.isNotBlank()) {
+            try {
+                val seedPhotos = context.assets.list("seed_photos") ?: emptyArray()
+                val matched = seedPhotos.firstOrNull { it.startsWith(docId) || docId.startsWith(it.removeSuffix(".jpg")) }
+                if (matched != null) {
+                    val destFile = File(docsDir, matched)
+                    if (!destFile.exists() || destFile.length() == 0L) {
+                        context.assets.open("seed_photos/$matched").use { input ->
+                            destFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
+                    if (destFile.exists() && destFile.length() > 0L) return destFile
+                }
+            } catch (_: Exception) {}
+        }
+
+        return null
     }
 
     fun deleteLocalFiles(
@@ -148,7 +200,7 @@ object ImageStorageHelper {
             thumbnailFileIndex.remove(cacheKey, indexed)
         }
 
-        val localFile = getLocalFile(context, localImageFileName)
+        val localFile = getLocalFile(context, localImageFileName, docId)
         if (localFile != null) {
             thumbnailFileIndex[cacheKey] = localFile
             return@withContext localFile
@@ -199,7 +251,7 @@ object ImageStorageHelper {
         previewBase64: String,
         docId: String = ""
     ): Bitmap? = withContext(Dispatchers.IO) {
-        val local = getLocalFile(context, localImageFileName)
+        val local = getLocalFile(context, localImageFileName, docId)
         if (local != null) {
             val decoded = BitmapFactory.decodeFile(local.absolutePath)
             if (decoded != null) return@withContext decoded

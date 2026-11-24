@@ -113,7 +113,6 @@ class LocalDocumentCacheRepository(
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
                 val docId = obj.getString("id")
-                if (documentDao.getById(docId) != null) continue
                 val fileName = "${docId}.jpg"
                 val destFile = File(docsDir, fileName)
 
@@ -128,6 +127,8 @@ class LocalDocumentCacheRepository(
                         Log.w("LocalDocumentCache", "Could not copy seed photo for $fileName: ${e.message}")
                     }
                 }
+
+                if (documentDao.getById(docId) != null) continue
 
                 val extractedList = mutableListOf<String>()
                 val extArr = obj.optJSONArray("extractedFields")

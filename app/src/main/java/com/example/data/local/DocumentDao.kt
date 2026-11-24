@@ -120,7 +120,7 @@ interface DocumentDao {
     @Query("DELETE FROM documents WHERE userId = :userId")
     suspend fun clearForUser(userId: String)
 
-    @Query("DELETE FROM documents WHERE userId = :userId AND id NOT IN (:activeIds) AND id NOT LIKE 'doc_%'")
+    @Query("DELETE FROM documents WHERE userId = :userId AND id NOT IN (:activeIds) AND id NOT LIKE 'apex_doc_%' AND id NOT LIKE 'doc_%'")
     suspend fun deleteNotInForUser(userId: String, activeIds: List<String>)
 
     @Transaction

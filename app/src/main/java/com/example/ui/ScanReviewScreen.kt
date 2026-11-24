@@ -55,6 +55,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -245,14 +246,28 @@ private fun ReviewDraftView(
     onSaveDocument: () -> Unit
 ) {
     // Keep editable date text fields decoupled from ISO normalization so typing never jumps
-    var docDateText by remember(draft.bitmap, draft.documentDateIso) {
+    var docDateText by remember(draft.bitmap) {
         mutableStateOf(
             if (draft.documentDateIso.isNotBlank()) DateSearchParser.formatSlashDate(draft.documentDateIso)
             else ""
         )
     }
-    var filedDateText by remember(draft.bitmap, draft.filedDateIso) {
+    LaunchedEffect(draft.documentDateIso) {
+        val currentParsed = DateSearchParser.parseDateQuery(docDateText)?.primaryIso ?: ""
+        if (currentParsed != draft.documentDateIso) {
+            docDateText = if (draft.documentDateIso.isNotBlank()) {
+                DateSearchParser.formatSlashDate(draft.documentDateIso)
+            } else ""
+        }
+    }
+    var filedDateText by remember(draft.bitmap) {
         mutableStateOf(DateSearchParser.formatSlashDate(draft.filedDateIso))
+    }
+    LaunchedEffect(draft.filedDateIso) {
+        val currentParsed = DateSearchParser.parseDateQuery(filedDateText)?.primaryIso ?: ""
+        if (currentParsed != draft.filedDateIso) {
+            filedDateText = DateSearchParser.formatSlashDate(draft.filedDateIso)
+        }
     }
     var showDocDatePicker by remember { mutableStateOf(false) }
     var showFiledDatePicker by remember { mutableStateOf(false) }

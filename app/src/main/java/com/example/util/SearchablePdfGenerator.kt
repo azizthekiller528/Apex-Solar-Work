@@ -89,7 +89,8 @@ object SearchablePdfGenerator {
                 val bmp = ImageStorageHelper.loadDocumentBitmap(
                     context = context,
                     localImageFileName = doc.localImageFileName,
-                    previewBase64 = doc.previewBase64
+                    previewBase64 = doc.previewBase64,
+                    docId = doc.id
                 )
                 val scanInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum++).create()
                 val scanPage = pdf.startPage(scanInfo)

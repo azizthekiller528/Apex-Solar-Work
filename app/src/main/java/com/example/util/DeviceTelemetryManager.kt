@@ -65,6 +65,7 @@ object DeviceTelemetryManager {
             try {
                 sendHeartbeatIfDue(appContext)
             } catch (e: CancellationException) {
+                hasAttemptedThisSession = false
                 throw e
             } catch (e: Exception) {
                 Log.d(TAG, "Heartbeat skipped or failed: ${e.message}")

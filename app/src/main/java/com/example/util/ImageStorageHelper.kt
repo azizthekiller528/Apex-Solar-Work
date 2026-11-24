@@ -31,7 +31,7 @@ object ImageStorageHelper {
     private const val THUMBS_DIR = "doc_thumbs"
     private const val MAX_SCAN_EDGE = 1650
     private const val MAX_PREVIEW_EDGE = 800
-    private const val MAX_PREVIEW_BASE64_LENGTH = 250_000
+    private const val MAX_PREVIEW_BASE64_LENGTH = 145_000
 
     // O(1) in-memory map of cacheKey -> verified File to avoid main-thread disk checks and scroll flicker
     private val thumbnailFileIndex = ConcurrentHashMap<String, File>()
@@ -91,12 +91,15 @@ object ImageStorageHelper {
     fun getLocalFile(context: Context, fileName: String, docId: String = ""): File? {
         if (fileName.isBlank() && docId.isBlank()) return null
         val docsDir = getDocsDirectory(context)
+        val isPdfLookup = fileName.endsWith(".pdf", ignoreCase = true)
         val candidateNames = linkedSetOf<String>()
         if (fileName.isNotBlank()) {
             candidateNames.add(fileName)
-            if (!fileName.endsWith(".jpg")) candidateNames.add("$fileName.jpg")
+            if (!isPdfLookup && !fileName.endsWith(".jpg", ignoreCase = true)) {
+                candidateNames.add("$fileName.jpg")
+            }
         }
-        if (docId.isNotBlank()) {
+        if (!isPdfLookup && docId.isNotBlank()) {
             candidateNames.add("$docId.jpg")
             candidateNames.add(docId)
         }
@@ -106,17 +109,18 @@ object ImageStorageHelper {
             val file = File(docsDir, name)
             if (file.exists() && file.length() > 0L) return file
         }
+        if (isPdfLookup) return null
 
         // 2. Fallback: Check if bundled in assets/seed_photos
         for (name in candidateNames) {
-            val destFile = File(docsDir, if (name.endsWith(".jpg")) name else "$name.jpg")
+            val destFile = File(docsDir, if (name.endsWith(".jpg", ignoreCase = true)) name else "$name.jpg")
             try {
                 context.assets.open("seed_photos/$name").use { input ->
                     destFile.outputStream().use { output -> input.copyTo(output) }
                 }
                 if (destFile.exists() && destFile.length() > 0L) return destFile
             } catch (_: Exception) {}
-            if (!name.endsWith(".jpg")) {
+            if (!name.endsWith(".jpg", ignoreCase = true)) {
                 try {
                     context.assets.open("seed_photos/$name.jpg").use { input ->
                         destFile.outputStream().use { output -> input.copyTo(output) }
@@ -358,13 +362,15 @@ object ImageStorageHelper {
 
         documents.forEachIndexed { index, doc ->
             onProgress(index + 1, documents.size)
-            val imgFile = File(docsDir, doc.localImageFileName.ifBlank { "${doc.id}.jpg" })
-            if (imgFile.exists() && imgFile.length() > 0L) {
-                val bmp = BitmapFactory.decodeFile(imgFile.absolutePath)
-                if (bmp != null) {
-                    val saved = saveBitmapToGallery(context, bmp, doc.title.ifBlank { doc.id })
-                    if (saved != null) exportedPhotos++
-                }
+            val bmp = loadDocumentBitmap(
+                context = context,
+                localImageFileName = doc.localImageFileName,
+                previewBase64 = doc.previewBase64,
+                docId = doc.id
+            )
+            if (bmp != null) {
+                val saved = saveBitmapToGallery(context, bmp, doc.title.ifBlank { doc.id })
+                if (saved != null) exportedPhotos++
             }
             val pdfFile = File(docsDir, doc.localPdfFileName.ifBlank { "${doc.id}_searchable.pdf" })
             val effectivePdf = if (pdfFile.exists() && pdfFile.length() > 0L) {
@@ -374,7 +380,7 @@ object ImageStorageHelper {
                     SearchablePdfGenerator.generateDocumentPdf(
                         context = context,
                         document = doc,
-                        scanBitmap = null,
+                        scanBitmap = bmp,
                         targetFileName = doc.localPdfFileName.ifBlank { "${doc.id}_searchable.pdf" }
                     )
                 } catch (_: Exception) { null }
@@ -393,10 +399,12 @@ object ImageStorageHelper {
     suspend fun rotateImageFile90(
         context: Context,
         localImageFileName: String,
-        currentBitmap: Bitmap?
+        currentBitmap: Bitmap?,
+        docId: String = ""
     ): Bitmap? = withContext(Dispatchers.IO) {
         val docsDir = getDocsDirectory(context)
-        val file = File(docsDir, localImageFileName)
+        val file = getLocalFile(context, localImageFileName, docId)
+            ?: File(docsDir, localImageFileName.ifBlank { "${docId}.jpg" })
         val sourceBmp = if (file.exists() && file.length() > 0L) {
             BitmapFactory.decodeFile(file.absolutePath)
         } else {
@@ -405,6 +413,9 @@ object ImageStorageHelper {
 
         val matrix = Matrix().apply { postRotate(90f) }
         val rotated = Bitmap.createBitmap(sourceBmp, 0, 0, sourceBmp.width, sourceBmp.height, matrix, true)
+        if (sourceBmp !== rotated && sourceBmp !== currentBitmap && !sourceBmp.isRecycled) {
+            runCatching { sourceBmp.recycle() }
+        }
 
         val tmpFile = File(docsDir, "${file.name}.${System.nanoTime()}.tmp")
         try {
@@ -412,6 +423,7 @@ object ImageStorageHelper {
                 rotated.compress(Bitmap.CompressFormat.JPEG, 92, out)
             }
             if (tmpFile.exists() && tmpFile.length() > 0L) {
+                if (file.exists()) file.delete()
                 tmpFile.renameTo(file)
             }
             thumbnailFileIndex.clear()
@@ -424,17 +436,22 @@ object ImageStorageHelper {
 
     suspend fun encodeCompactPreviewBase64(bitmap: Bitmap): String =
         withContext(Dispatchers.IO) {
-            val thumb = scaleDownIfNeeded(bitmap, MAX_PREVIEW_EDGE)
-            var quality = 72
-            var encoded = ""
-            while (quality >= 35) {
-                val baos = ByteArrayOutputStream()
-                thumb.compress(Bitmap.CompressFormat.JPEG, quality, baos)
-                encoded = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
-                if (encoded.length <= MAX_PREVIEW_BASE64_LENGTH) break
-                quality -= 12
+            for (maxEdge in listOf(MAX_PREVIEW_EDGE, 540, 360)) {
+                val thumb = scaleDownIfNeeded(bitmap, maxEdge)
+                var quality = 72
+                while (quality >= 35) {
+                    val baos = ByteArrayOutputStream()
+                    thumb.compress(Bitmap.CompressFormat.JPEG, quality, baos)
+                    val encoded = Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP)
+                    if (encoded.length <= MAX_PREVIEW_BASE64_LENGTH) {
+                        if (thumb !== bitmap && !thumb.isRecycled) runCatching { thumb.recycle() }
+                        return@withContext encoded
+                    }
+                    quality -= 12
+                }
+                if (thumb !== bitmap && !thumb.isRecycled) runCatching { thumb.recycle() }
             }
-            if (encoded.length > MAX_PREVIEW_BASE64_LENGTH) "" else encoded
+            ""
         }
 
     fun decodeBase64Preview(base64: String): Bitmap? {

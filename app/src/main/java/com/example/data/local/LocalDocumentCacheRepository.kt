@@ -186,16 +186,22 @@ class LocalDocumentCacheRepository(
                         updatedAny = true
                     } catch (_: Exception) {}
                 } else {
-                    // Check if existing file is landscape (width > height)
+                    // Only overwrite sideways cached copy if the bundled asset itself is portrait (avoid wiping cache for naturally landscape slips)
                     try {
-                        val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                        BitmapFactory.decodeFile(destFile.absolutePath, opts)
-                        if (opts.outWidth > opts.outHeight) {
+                        val destOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                        BitmapFactory.decodeFile(destFile.absolutePath, destOpts)
+                        if (destOpts.outWidth > destOpts.outHeight) {
+                            val assetOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                             context.assets.open("seed_photos/$fileName").use { input ->
-                                destFile.outputStream().use { output -> input.copyTo(output) }
+                                BitmapFactory.decodeStream(input, null, assetOpts)
                             }
-                            updatedAny = true
-                            Log.i("LocalDocumentCache", "Straightened sideways photo to portrait: $fileName")
+                            if (assetOpts.outHeight >= assetOpts.outWidth && assetOpts.outHeight > 0) {
+                                context.assets.open("seed_photos/$fileName").use { input ->
+                                    destFile.outputStream().use { output -> input.copyTo(output) }
+                                }
+                                updatedAny = true
+                                Log.i("LocalDocumentCache", "Straightened sideways photo to portrait: $fileName")
+                            }
                         }
                     } catch (_: Exception) {}
                 }

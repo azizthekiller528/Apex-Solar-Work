@@ -100,10 +100,12 @@ object AppUpdateManager {
             val fileName = "ApexSolarWork-v${info.versionName}.apk"
             val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
                 ?: File(context.cacheDir, "updates").also { if (!it.exists()) it.mkdirs() }
-            val destFile = File(destDir, fileName)
-            if (destFile.exists()) {
-                destFile.delete()
+            destDir.listFiles()?.forEach { existing ->
+                if (existing.name.startsWith("ApexSolarWork-v") && existing.name.endsWith(".apk")) {
+                    runCatching { existing.delete() }
+                }
             }
+            val destFile = File(destDir, fileName)
 
             val request = DownloadManager.Request(Uri.parse(info.apkUrl))
                 .setTitle("Apex Solar Work v${info.versionName}")
@@ -125,9 +127,21 @@ object AppUpdateManager {
     /**
      * Queries the status of an ongoing DownloadManager task.
      */
-    fun queryDownloadStatus(context: Context, downloadId: Long): DownloadStatus {
+    fun queryDownloadStatus(
+        context: Context,
+        downloadId: Long,
+        expectedFileName: String = ""
+    ): DownloadStatus {
         val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
             ?: return DownloadStatus.Failed("DownloadManager not available")
+
+        fun resolveExpectedFile(): File? {
+            if (expectedFileName.isBlank()) return null
+            val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                ?: File(context.cacheDir, "updates")
+            val f = File(destDir, expectedFileName)
+            return if (f.exists() && f.length() > 1_000_000L) f else null
+        }
 
         val query = DownloadManager.Query().setFilterById(downloadId)
         try {
@@ -145,21 +159,18 @@ object AppUpdateManager {
                                 val path = uri.path
                                 if (path != null) {
                                     val f = File(path)
-                                    if (f.exists() && f.length() > 0L) return DownloadStatus.Completed(f)
+                                    if (f.exists() && f.length() > 1_000_000L) return DownloadStatus.Completed(f)
                                 }
                             }
-                            val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                                ?: File(context.cacheDir, "updates")
-                            val candidate = destDir.listFiles()?.filter { it.name.endsWith(".apk") && it.length() > 0L }
-                                ?.maxByOrNull { it.lastModified() }
-                            return DownloadStatus.Completed(candidate)
+                            return resolveExpectedFile()?.let { DownloadStatus.Completed(it) }
+                                ?: DownloadStatus.Failed("Downloaded APK file incomplete or missing")
                         }
                         DownloadManager.STATUS_FAILED -> {
                             val reasonIdx = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
                             val reason = if (reasonIdx >= 0) cursor.getInt(reasonIdx) else -1
                             return DownloadStatus.Failed("Download failed (reason $reason)")
                         }
-                        DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING -> {
+                        DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING, DownloadManager.STATUS_PAUSED -> {
                             val bytesSoFarIdx = cursor.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)
                             val totalBytesIdx = cursor.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)
                             val bytesSoFar = if (bytesSoFarIdx >= 0) cursor.getLong(bytesSoFarIdx) else 0L
@@ -170,26 +181,14 @@ object AppUpdateManager {
                         else -> return DownloadStatus.Running(0)
                     }
                 } else {
-                    val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                        ?: File(context.cacheDir, "updates")
-                    val candidate = destDir.listFiles()?.filter { it.name.endsWith(".apk") && it.length() > 0L }
-                        ?.maxByOrNull { it.lastModified() }
-                    if (candidate != null) {
-                        return DownloadStatus.Completed(candidate)
-                    }
-                    return DownloadStatus.Failed("Download was cancelled or cleared")
+                    return resolveExpectedFile()?.let { DownloadStatus.Completed(it) }
+                        ?: DownloadStatus.Failed("Download was cancelled or cleared")
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to query download status", e)
-            val destDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                ?: File(context.cacheDir, "updates")
-            val candidate = destDir.listFiles()?.filter { it.name.endsWith(".apk") && it.length() > 0L }
-                ?.maxByOrNull { it.lastModified() }
-            if (candidate != null) {
-                return DownloadStatus.Completed(candidate)
-            }
-            return DownloadStatus.Failed("Query error: ${e.message}")
+            return resolveExpectedFile()?.let { DownloadStatus.Completed(it) }
+                ?: DownloadStatus.Failed("Query error: ${e.message}")
         }
         return DownloadStatus.Running(0)
     }
@@ -202,11 +201,10 @@ object AppUpdateManager {
         info: AppUpdateInfo,
         onProgress: (Int) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
+        val updatesDir = File(context.cacheDir, "updates")
+        if (!updatesDir.exists()) updatesDir.mkdirs()
+        val targetFile = File(updatesDir, "ApexSolarWork-v${info.versionName}.apk")
         try {
-            val updatesDir = File(context.cacheDir, "updates")
-            if (!updatesDir.exists()) updatesDir.mkdirs()
-
-            val targetFile = File(updatesDir, "ApexSolarWork-v${info.versionName}.apk")
             if (targetFile.exists()) targetFile.delete()
 
             val request = Request.Builder().url(info.apkUrl).build()
@@ -236,11 +234,17 @@ object AppUpdateManager {
                 }
             }
 
+            if (!targetFile.exists() || targetFile.length() < 1_000_000L) {
+                runCatching { targetFile.delete() }
+                return@withContext Result.failure(IllegalStateException("Downloaded APK is incomplete"))
+            }
             onProgress(100)
             Result.success(targetFile)
         } catch (e: CancellationException) {
+            runCatching { targetFile.delete() }
             throw e
         } catch (e: Exception) {
+            runCatching { targetFile.delete() }
             Log.e(TAG, "Failed to download update APK", e)
             Result.failure(e)
         }

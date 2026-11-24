@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -78,6 +79,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.SiteExpense
 import com.example.data.model.SiteMaterialRecord
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -335,7 +337,9 @@ fun ExpensesScreen(
                                 if (payerBreakdown.isNotEmpty()) {
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         payerBreakdown.forEach { (payer, amt) ->
@@ -1214,7 +1218,8 @@ private fun formatChipDate(iso: String): String {
         val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US)
         val parsed = parser.parse(iso) ?: return iso
         val today = parser.format(Date())
-        val yesterday = parser.format(Date(System.currentTimeMillis() - 86400000L))
+        val cal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+        val yesterday = parser.format(cal.time)
         when (iso) {
             today -> "Today"
             yesterday -> "Yesterday"

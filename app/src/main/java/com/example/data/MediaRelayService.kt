@@ -203,8 +203,7 @@ object MediaRelayService {
         documents.forEachIndexed { index, doc ->
             onProgress(index + 1, documents.size)
             val fileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" }
-            val local = File(ImageStorageHelper.getDocsDirectory(context), fileName)
-            if (!local.exists() || local.length() == 0L) {
+            if (ImageStorageHelper.getLocalFile(context, doc.localImageFileName, doc.id) == null) {
                 val res = downloadMediaToLocal(context, doc.id, "photo", fileName)
                 if (res.isSuccess) downloaded++
             }

@@ -1,8 +1,8 @@
 {
-  "versionCode": 15,
-  "versionName": "2.4",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.4.apk",
-  "sha256": "63386b52d11cc1a44a790379a478209768a19ebaeb9cb66577dd460939094a14",
+  "versionCode": 16,
+  "versionName": "2.5",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.5.apk",
+  "sha256": "80079f4f7c90017ef8650679be146498bef99df96fd9f3760b665d7fb121f82c",
   "sizeBytes": 46341179,
-  "releaseNotes": "• Expenses stay only in Expenses tab (real-time cloud sync preserved)\n• Vault, By Date & Starred show only gate passes, material slips, challans & site docs (clean 35 docs)\n• Removed Daily Kharcha & Daily Site Expenses clutter from Vault"
+  "releaseNotes": "• Stopped unnecessary thumbnail cache wipes on launch for landscape seed slips\n• Fixed Firestore 160 KB preview limit errors on dense scans\n• Fixed bundled slip loading in PDFs, backups, rotation, and cloud sync\n• Stopped date typing cursor jumps, stale scan/AI state overwrites, and Main-thread hangs during updates & gallery saves\n• Hardened updater download verification, error feedback, scrollable expense payer chips, and tab preservation"
 }

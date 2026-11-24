@@ -626,25 +626,28 @@ class DocFolioViewModel(
     fun runAiAutoFillOnCurrentDraft() {
         val current = _scanState.value
         if (current !is ScanFlowState.Review || current.isSaving || _isExtractingWithAi.value) return
-        val draft = current.draft
+        val draftBitmap = current.draft.bitmap
 
         viewModelScope.launch {
             _isExtractingWithAi.value = true
             try {
                 val result = withContext(Dispatchers.Default) {
-                    ocrService.analyzeDocumentPhoto(draft.bitmap)
+                    ocrService.analyzeDocumentPhoto(draftBitmap)
                 }
-                _scanState.value = current.copy(
-                    draft = draft.copy(
-                        title = result.title.ifBlank { draft.title },
+                val latest = _scanState.value as? ScanFlowState.Review ?: return@launch
+                if (latest.draft.bitmap !== draftBitmap) return@launch
+                val latestDraft = latest.draft
+                _scanState.value = latest.copy(
+                    draft = latestDraft.copy(
+                        title = result.title.ifBlank { latestDraft.title },
                         category = result.category,
-                        documentDateIso = if (result.documentDateIso.isNotBlank()) result.documentDateIso else draft.documentDateIso,
-                        referenceNumber = result.referenceNumber.ifBlank { draft.referenceNumber },
-                        organization = result.organization.ifBlank { draft.organization },
-                        contractorOrParty = result.contractorOrParty.ifBlank { draft.contractorOrParty },
-                        summary = result.summary.ifBlank { draft.summary },
-                        extractedFieldsText = if (result.extractedFields.isNotEmpty()) result.extractedFields.joinToString("\n") else draft.extractedFieldsText,
-                        ocrFullText = result.ocrFullText.ifBlank { draft.ocrFullText }
+                        documentDateIso = if (result.documentDateIso.isNotBlank()) result.documentDateIso else latestDraft.documentDateIso,
+                        referenceNumber = result.referenceNumber.ifBlank { latestDraft.referenceNumber },
+                        organization = result.organization.ifBlank { latestDraft.organization },
+                        contractorOrParty = result.contractorOrParty.ifBlank { latestDraft.contractorOrParty },
+                        summary = result.summary.ifBlank { latestDraft.summary },
+                        extractedFieldsText = if (result.extractedFields.isNotEmpty()) result.extractedFields.joinToString("\n") else latestDraft.extractedFieldsText,
+                        ocrFullText = result.ocrFullText.ifBlank { latestDraft.ocrFullText }
                     )
                 )
                 _events.emit(OneShotEvent.ShowMessage("AI auto-filled fields from document"))
@@ -739,7 +742,10 @@ class DocFolioViewModel(
                         _events.emit(OneShotEvent.OpenDocumentDetail(savedId))
                     },
                     onFailure = { err ->
-                        _scanState.value = current.copy(isSaving = false)
+                        val latest = _scanState.value
+                        if (latest is ScanFlowState.Review) {
+                            _scanState.value = latest.copy(isSaving = false)
+                        }
                         _events.emit(
                             OneShotEvent.ShowMessage(
                                 err.localizedMessage ?: "Failed to save document to cloud."
@@ -751,7 +757,10 @@ class DocFolioViewModel(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Failed saving scanned document", e)
-                _scanState.value = current.copy(isSaving = false)
+                val latest = _scanState.value
+                if (latest is ScanFlowState.Review) {
+                    _scanState.value = latest.copy(isSaving = false)
+                }
                 _events.emit(OneShotEvent.ShowMessage(e.localizedMessage ?: "Error saving document."))
             }
         }
@@ -793,7 +802,8 @@ class DocFolioViewModel(
                 val bmp = ImageStorageHelper.loadDocumentBitmap(
                     context = context,
                     localImageFileName = updatedCopy.localImageFileName,
-                    previewBase64 = updatedCopy.previewBase64
+                    previewBase64 = updatedCopy.previewBase64,
+                    docId = updatedCopy.id
                 )
                 SearchablePdfGenerator.generateDocumentPdf(
                     context = context,
@@ -892,7 +902,8 @@ class DocFolioViewModel(
                     val bmp = ImageStorageHelper.loadDocumentBitmap(
                         context = context,
                         localImageFileName = doc.localImageFileName,
-                        previewBase64 = doc.previewBase64
+                        previewBase64 = doc.previewBase64,
+                        docId = doc.id
                     )
                     SearchablePdfGenerator.generateDocumentPdf(context, doc, bmp, fileName)
                 }
@@ -988,10 +999,13 @@ class DocFolioViewModel(
                     var completed = false
                     var attempts = 0
                     val maxAttempts = 600 // 10 minutes timeout
+                    val expectedApkName = "ApexSolarWork-v${info.versionName}.apk"
                     while (!completed && attempts < maxAttempts && isActive) {
                         attempts++
                         kotlinx.coroutines.delay(1000L)
-                        val status = AppUpdateManager.queryDownloadStatus(context, downloadId)
+                        val status = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            AppUpdateManager.queryDownloadStatus(context, downloadId, expectedApkName)
+                        }
                         when (status) {
                             is com.example.util.DownloadStatus.Running -> {
                                 if (_appUpdateState.value is AppUpdateState.Downloading) {

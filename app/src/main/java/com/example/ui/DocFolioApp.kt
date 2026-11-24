@@ -68,6 +68,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -187,8 +188,8 @@ fun DocFolioApp(
         }
     }
 
-    var currentTab by remember { mutableStateOf(MainTab.VAULT) }
-    var selectedDocId by remember { mutableStateOf<String?>(null) }
+    var currentTab by rememberSaveable { mutableStateOf(MainTab.VAULT) }
+    var selectedDocId by rememberSaveable { mutableStateOf<String?>(null) }
     var showScanSourceSheet by remember { mutableStateOf(false) }
     var showCameraView by remember { mutableStateOf(false) }
     var showAccountMenu by remember { mutableStateOf(false) }
@@ -867,7 +868,13 @@ fun DocFolioApp(
                 title = { Text("Download Complete") },
                 text = { Text("Tap Install to complete updating to the latest version.") },
                 confirmButton = {
-                    Button(onClick = { AppUpdateManager.installApk(context, state.apkFile) }) {
+                    Button(onClick = {
+                        AppUpdateManager.installApk(context, state.apkFile).onFailure { err ->
+                            scope.launch {
+                                snackbarHostState.showSnackbar("Install launch failed: ${err.message}")
+                            }
+                        }
+                    }) {
                         Text("Install")
                     }
                 },

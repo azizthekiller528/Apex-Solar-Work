@@ -73,7 +73,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -284,7 +286,8 @@ fun DocumentDetailScreen(
                                                     val rotated = ImageStorageHelper.rotateImageFile90(
                                                         context = context,
                                                         localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
-                                                        currentBitmap = scanBitmap
+                                                        currentBitmap = scanBitmap,
+                                                        docId = doc.id
                                                     )
                                                     if (rotated != null) {
                                                         scanBitmap = rotated
@@ -423,25 +426,35 @@ fun DocumentDetailScreen(
                 }
 
                 // Save Photo to Phone Gallery Button
+                var isSavingPhoto by remember { mutableStateOf(false) }
                 OutlinedButton(
                     onClick = {
                         val bmp = scanBitmap
-                        if (bmp != null) {
-                            val savedUri = ImageStorageHelper.saveBitmapToGallery(
-                                context = context,
-                                bitmap = bmp,
-                                title = doc.title.ifBlank { doc.id }
-                            )
-                            if (savedUri != null) {
-                                onCopyFeedback("Photo saved to Gallery (Pictures/ApexSolar)")
-                            } else {
-                                onCopyFeedback("Failed to save photo to Gallery")
+                        if (bmp != null && !isSavingPhoto) {
+                            isSavingPhoto = true
+                            scope.launch {
+                                try {
+                                    val savedUri = withContext(Dispatchers.IO) {
+                                        ImageStorageHelper.saveBitmapToGallery(
+                                            context = context,
+                                            bitmap = bmp,
+                                            title = doc.title.ifBlank { doc.id }
+                                        )
+                                    }
+                                    if (savedUri != null) {
+                                        onCopyFeedback("Photo saved to Gallery (Pictures/ApexSolar)")
+                                    } else {
+                                        onCopyFeedback("Failed to save photo to Gallery")
+                                    }
+                                } finally {
+                                    isSavingPhoto = false
+                                }
                             }
-                        } else {
+                        } else if (bmp == null) {
                             onCopyFeedback("Photo loading or downloading from cloud...")
                         }
                     },
-                    enabled = scanBitmap != null,
+                    enabled = scanBitmap != null && !isSavingPhoto,
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                     modifier = Modifier
@@ -839,7 +852,8 @@ fun DocumentDetailScreen(
                             val rotated = ImageStorageHelper.rotateImageFile90(
                                 context = context,
                                 localImageFileName = doc.localImageFileName.ifBlank { "${doc.id}.jpg" },
-                                currentBitmap = scanBitmap
+                                currentBitmap = scanBitmap,
+                                docId = doc.id
                             )
                             if (rotated != null) {
                                 scanBitmap = rotated

@@ -470,5 +470,16 @@ class DocumentRepository(
             }.lowercase(Locale.US)
             return tokens.all { token -> haystack.contains(token) }
         }
+
+        /**
+         * Identifies cloud-backed daily expense sync documents (`daily_expenses_*`, `expense_report_*`,
+         * or embedded expense payloads) so they stay scoped to the Expenses tab and never clutter
+         * the Vault, By Date, or Starred document lists.
+         */
+        internal fun isExpenseTabDocument(doc: ScannedDocument): Boolean {
+            return doc.id.startsWith("daily_expenses_") ||
+                doc.id.startsWith("expense_report_") ||
+                doc.ocrFullText.contains(SiteExpenseRepository.EXPENSES_DELIMITER_START)
+        }
     }
 }

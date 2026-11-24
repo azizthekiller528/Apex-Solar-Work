@@ -535,4 +535,45 @@ class DocFolioPureJvmTest {
         assertEquals("2026-11-23", deletedDateMaterials)
         assertEquals(0, insertedExpenseCount)
     }
+
+    @Test
+    fun isExpenseTabDocument_hidesExpenseSyncDocsAndKeepsGatePassesAndSlips() {
+        val dailyKharchaDoc = ScannedDocument(
+            id = "daily_expenses_2026_11_23",
+            title = "Daily Kharcha — 23 November 2026",
+            category = DocumentCategory.SITE_REPORT.name
+        )
+        val expenseReportDoc = ScannedDocument(
+            id = "expense_report_2026_11_23",
+            title = "Daily Site Expenses — 23 Nov 2026",
+            category = DocumentCategory.SITE_REPORT.name
+        )
+        val delimiterDoc = ScannedDocument(
+            id = "custom_sync_id",
+            title = "Custom Sync Sheet",
+            ocrFullText = "${com.example.data.SiteExpenseRepository.EXPENSES_DELIMITER_START}\n[]"
+        )
+        val gatePassDoc = ScannedDocument(
+            id = "apex_doc_07_slip_14146",
+            title = "Gate Pass 14146",
+            category = DocumentCategory.DELIVERY_CHALLAN.name
+        )
+        val siteNoteDoc = ScannedDocument(
+            id = "apex_doc_13_omfa_purlin",
+            title = "Site Note - Purlin 18 No (260/-)",
+            category = DocumentCategory.SITE_REPORT.name
+        )
+        val scannedSlipDoc = ScannedDocument(
+            id = "apex_doc_16_nut_bolt_slip",
+            title = "Expense Slip - Nut Bolt (870/-)",
+            category = DocumentCategory.INVOICE_RECEIPT.name
+        )
+
+        assertTrue(DocumentRepository.isExpenseTabDocument(dailyKharchaDoc))
+        assertTrue(DocumentRepository.isExpenseTabDocument(expenseReportDoc))
+        assertTrue(DocumentRepository.isExpenseTabDocument(delimiterDoc))
+        assertFalse(DocumentRepository.isExpenseTabDocument(gatePassDoc))
+        assertFalse(DocumentRepository.isExpenseTabDocument(siteNoteDoc))
+        assertFalse(DocumentRepository.isExpenseTabDocument(scannedSlipDoc))
+    }
 }

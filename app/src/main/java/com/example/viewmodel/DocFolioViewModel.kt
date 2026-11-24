@@ -169,7 +169,10 @@ class DocFolioViewModel(
 
     private val localDocsFlow: Flow<List<ScannedDocument>> =
         (localCache?.observeCachedDocuments(currentUserId) ?: emptyFlow())
-            .map { list -> list.map { it.toScannedDocument() } }
+            .map { list ->
+                list.map { it.toScannedDocument() }
+                    .filterNot { DocumentRepository.isExpenseTabDocument(it) }
+            }
             .catch { error ->
                 if (error is CancellationException) throw error
                 Log.w(TAG, "Local Room cache read warning: ${error.message}")
@@ -211,7 +214,7 @@ class DocFolioViewModel(
 
     val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
         combine(localDocsFlow, cloudDocsFlow) { localDocs, cloudDocs ->
-            val cloud = cloudDocs ?: emptyList()
+            val cloud = (cloudDocs ?: emptyList()).filterNot { DocumentRepository.isExpenseTabDocument(it) }
             val docs = when {
                 cloud.isEmpty() -> localDocs
                 localDocs.isEmpty() -> cloud
@@ -339,8 +342,11 @@ class DocFolioViewModel(
                         category = filter.selectedCategory,
                         dateMatchMode = filter.dateMatchMode
                     )
-                        .map<List<ScannedDocument>, FirestoreSearchState> {
-                            FirestoreSearchState.Success(filter = filter, documents = it)
+                        .map<List<ScannedDocument>, FirestoreSearchState> { docs ->
+                            FirestoreSearchState.Success(
+                                filter = filter,
+                                documents = docs.filterNot { DocumentRepository.isExpenseTabDocument(it) }
+                            )
                         }
                         .onStart { emit(FirestoreSearchState.Loading) }
                         .catch { error ->
@@ -382,7 +388,9 @@ class DocFolioViewModel(
                         dateMatchMode = filter.dateMatchMode
                     )
                 }
-                .map<List<DocumentEntity>, List<DocumentEntity>?> { it }
+                .map<List<DocumentEntity>, List<DocumentEntity>?> { list ->
+                    list.filterNot { DocumentRepository.isExpenseTabDocument(it.toScannedDocument()) }
+                }
                 .catch { error ->
                     if (error is CancellationException) throw error
                     Log.w(TAG, "Local Room reactive query warning: ${error.message}")
@@ -1107,14 +1115,6 @@ class DocFolioViewModel(
             val repo = siteExpenseRepository ?: return@launch
             try {
                 val docId = "daily_expenses_${dateIso.replace("-", "_")}"
-                val existingDocs = (documentsState.value as? UiState.Success)?.data ?: emptyList()
-                val alreadyCovered = existingDocs.any { doc ->
-                    doc.id != docId &&
-                        (doc.documentDateIso == dateIso || doc.filedDateIso == dateIso) &&
-                        doc.category == DocumentCategory.SITE_REPORT.name
-                }
-                if (alreadyCovered) return@launch
-
                 val expenses = repo.getExpensesForDate(dateIso)
                 val materials = repo.getMaterialsForDate(dateIso)
 
@@ -1199,16 +1199,8 @@ class DocFolioViewModel(
         val repo = siteExpenseRepository ?: return
         try {
             val dates = repo.getAllExpenseDates()
-            val existingDocs = (documentsState.value as? UiState.Success)?.data ?: emptyList()
             for (dateIso in dates) {
                 val docId = "daily_expenses_${dateIso.replace("-", "_")}"
-                val alreadyCovered = existingDocs.any { doc ->
-                    doc.id != docId &&
-                        (doc.documentDateIso == dateIso || doc.filedDateIso == dateIso) &&
-                        doc.category == DocumentCategory.SITE_REPORT.name
-                }
-                if (alreadyCovered) continue
-
                 val existing = repository.getDocument(docId).getOrNull()
                 if (existing == null) {
                     syncDateToCloud(dateIso)

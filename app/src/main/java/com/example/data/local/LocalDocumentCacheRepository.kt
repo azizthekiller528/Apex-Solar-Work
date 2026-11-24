@@ -105,6 +105,7 @@ class LocalDocumentCacheRepository(
 
     suspend fun seedFromAssetsIfEmpty(context: Context, userId: String = "apex_team") = withContext(Dispatchers.IO) {
         try {
+            documentDao.deleteById("daily_expenses_2026_11_23")
             val jsonString = context.assets.open("seed_documents.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
             val docsDir = ImageStorageHelper.getDocsDirectory(context)

@@ -1106,9 +1106,17 @@ class DocFolioViewModel(
         viewModelScope.launch {
             val repo = siteExpenseRepository ?: return@launch
             try {
+                val docId = "daily_expenses_${dateIso.replace("-", "_")}"
+                val existingDocs = (documentsState.value as? UiState.Success)?.data ?: emptyList()
+                val alreadyCovered = existingDocs.any { doc ->
+                    doc.id != docId &&
+                        (doc.documentDateIso == dateIso || doc.filedDateIso == dateIso) &&
+                        doc.category == DocumentCategory.SITE_REPORT.name
+                }
+                if (alreadyCovered) return@launch
+
                 val expenses = repo.getExpensesForDate(dateIso)
                 val materials = repo.getMaterialsForDate(dateIso)
-                val docId = "daily_expenses_${dateIso.replace("-", "_")}"
 
                 if (expenses.isEmpty() && materials.isEmpty()) {
                     val existing = repository.getDocument(docId).getOrNull()
@@ -1191,8 +1199,16 @@ class DocFolioViewModel(
         val repo = siteExpenseRepository ?: return
         try {
             val dates = repo.getAllExpenseDates()
+            val existingDocs = (documentsState.value as? UiState.Success)?.data ?: emptyList()
             for (dateIso in dates) {
                 val docId = "daily_expenses_${dateIso.replace("-", "_")}"
+                val alreadyCovered = existingDocs.any { doc ->
+                    doc.id != docId &&
+                        (doc.documentDateIso == dateIso || doc.filedDateIso == dateIso) &&
+                        doc.category == DocumentCategory.SITE_REPORT.name
+                }
+                if (alreadyCovered) continue
+
                 val existing = repository.getDocument(docId).getOrNull()
                 if (existing == null) {
                     syncDateToCloud(dateIso)

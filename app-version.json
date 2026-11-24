@@ -1,8 +1,8 @@
 {
-  "versionCode": 13,
-  "versionName": "2.2",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.2.apk",
-  "sha256": "0e74baff7b63ed48712f677cb14ca2dc3b26559168de12362049d28a03b7aaab",
+  "versionCode": 14,
+  "versionName": "2.3",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.3.apk",
+  "sha256": "7f1fa71c1c50770e2e92e1c3d1fa2d6d15f1f85c5bb8cd7920f09082e527fc3d",
   "sizeBytes": 46341179,
-  "releaseNotes": "• Fix: Instant photo display for all 35 material slips with zero blank screens\n• Fix: Robust on-demand asset fallback unpacking\n• Seamless unified Vault list (42 documents total)\n• Real-time cloud sync for Daily Kharcha (expenses & materials) between UP and Mumbai"
+  "releaseNotes": "• Fix: Purged duplicate 23 Nov site report (clean 41 vault documents)\n• Fix: Instant photo display for all 35 material slips with zero blank screens\n• Verified zero glitches and zero ghost documents"
 }

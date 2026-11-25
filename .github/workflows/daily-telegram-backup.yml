@@ -1,0 +1,26 @@
+name: Daily Telegram Cloud Backup
+
+on:
+  schedule:
+    - cron: '0 18 * * *' # Daily at 23:30 IST (18:00 UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run full Firestore and media backup to Telegram channel
+        env:
+          APEX_RELAY_TOKEN: ${{ secrets.APEX_RELAY_TOKEN }}
+        run: python3 scripts/daily_telegram_backup.py --quiet

@@ -575,5 +575,51 @@ class DocFolioPureJvmTest {
         assertFalse(DocumentRepository.isExpenseTabDocument(gatePassDoc))
         assertFalse(DocumentRepository.isExpenseTabDocument(siteNoteDoc))
         assertFalse(DocumentRepository.isExpenseTabDocument(scannedSlipDoc))
+        assertFalse(DocumentRepository.isHiddenFromVault(gatePassDoc))
+        assertTrue(DocumentRepository.isHiddenFromVault(dailyKharchaDoc))
+    }
+
+    @Test
+    fun siteLocationParser_parsesDirectCoordsMapsUrlsAndPlusCodes() {
+        val direct = com.example.data.model.SiteLocationParser.parseUserInput("28.264438, 78.048938")
+        assertEquals(28.264438, direct.latitude!!, 0.0001)
+        assertEquals(78.048938, direct.longitude!!, 0.0001)
+        assertEquals("", direct.googleMapsUrl)
+
+        val atUrl = com.example.data.model.SiteLocationParser.parseUserInput(
+            "https://www.google.com/maps/place/Test/@28.401234,78.123456,17z"
+        )
+        assertEquals(28.401234, atUrl.latitude!!, 0.0001)
+        assertEquals(78.123456, atUrl.longitude!!, 0.0001)
+        assertTrue(atUrl.googleMapsUrl.startsWith("https://www.google.com/maps/place"))
+
+        val plusCode = com.example.data.model.SiteLocationParser.decodeFullPlusCode("7JWW727X+QH")
+        assertNotNull(plusCode)
+        assertEquals(28.2644375, plusCode!!.first, 0.0001)
+        assertEquals(78.0489375, plusCode.second, 0.0001)
+    }
+
+    @Test
+    fun siteLocationRepository_serializesParsesAndHidesFromVault() {
+        val defaultStore = com.example.data.SiteLocationRepository.DEFAULT_MATERIAL_STORE
+        val syncText = com.example.data.SiteLocationRepository.formatCloudSyncText(listOf(defaultStore))
+        val parsed = com.example.data.SiteLocationRepository.parseLocationsFromOcrText(syncText)
+
+        assertEquals(1, parsed.size)
+        assertEquals(defaultStore.id, parsed[0].id)
+        assertEquals(defaultStore.name, parsed[0].name)
+        assertEquals(defaultStore.latitude!!, parsed[0].latitude!!, 0.0001)
+        assertEquals(defaultStore.longitude!!, parsed[0].longitude!!, 0.0001)
+        assertEquals(defaultStore.googleMapsUrl, parsed[0].googleMapsUrl)
+        assertTrue(parsed[0].isPinned)
+
+        val syncDoc = ScannedDocument(
+            id = com.example.data.SiteLocationRepository.CLOUD_SYNC_DOC_ID,
+            title = "Apex Solar Stored Site Locations & GPS",
+            category = DocumentCategory.SITE_REPORT.name,
+            ocrFullText = syncText
+        )
+        assertTrue(DocumentRepository.isSiteLocationSyncDocument(syncDoc))
+        assertTrue(DocumentRepository.isHiddenFromVault(syncDoc))
     }
 }

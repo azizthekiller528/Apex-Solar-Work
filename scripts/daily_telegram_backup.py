@@ -32,6 +32,8 @@ MAX_PART_BYTES = 17 * 1024 * 1024  # Keep under Telegram Bot 20 MB getFile resto
 EXPENSES_DELIM = "=== APEX_EXPENSES_DATA_V1 ==="
 MATERIALS_DELIM = "=== APEX_MATERIALS_DATA_V1 ==="
 DATA_END_DELIM = "=== END_APEX_DATA ==="
+SITES_DELIM = "=== APEX_SITE_LOCATIONS_V1 ==="
+SITES_END_DELIM = "=== END_APEX_SITE_LOCATIONS ==="
 
 
 def load_project_config(repo_root: Path) -> dict[str, str]:
@@ -144,9 +146,12 @@ def parse_between(text: str, start_marker: str, end_markers: list[str]) -> str:
     return text[start_idx:end_idx].strip()
 
 
-def extract_expenses_and_materials(docs: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def extract_expenses_materials_and_sites(
+    docs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     expenses: list[dict[str, Any]] = []
     materials: list[dict[str, Any]] = []
+    sites: list[dict[str, Any]] = []
 
     for doc in docs:
         ocr = str(doc.get("ocrFullText", ""))
@@ -178,7 +183,18 @@ def extract_expenses_and_materials(docs: list[dict[str, Any]]) -> tuple[list[dic
             except json.JSONDecodeError:
                 pass
 
-    return expenses, materials
+        sites_json = parse_between(ocr, SITES_DELIM, [SITES_END_DELIM])
+        if sites_json:
+            try:
+                parsed = json.loads(sites_json)
+                if isinstance(parsed, list):
+                    for item in parsed:
+                        if isinstance(item, dict):
+                            sites.append(item)
+            except json.JSONDecodeError:
+                pass
+
+    return expenses, materials, sites
 
 
 def build_human_readable_report(
@@ -186,28 +202,53 @@ def build_human_readable_report(
     docs: list[dict[str, Any]],
     expenses: list[dict[str, Any]],
     materials: list[dict[str, Any]],
+    sites: list[dict[str, Any]],
 ) -> str:
-    vault_docs = [
+    exp_docs = [
         d for d in docs
-        if not (
-            d["_docId"].startswith("daily_expenses_")
-            or d["_docId"].startswith("expense_report_")
-            or EXPENSES_DELIM in str(d.get("ocrFullText", ""))
-        )
+        if d["_docId"].startswith("daily_expenses_")
+        or d["_docId"].startswith("expense_report_")
+        or EXPENSES_DELIM in str(d.get("ocrFullText", ""))
     ]
-    exp_docs = [d for d in docs if d not in vault_docs]
+    site_docs = [
+        d for d in docs
+        if d["_docId"] == "site_locations_master"
+        or d["_docId"].startswith("site_locations_")
+        or SITES_DELIM in str(d.get("ocrFullText", ""))
+    ]
+    hidden_ids = {d["_docId"] for d in exp_docs} | {d["_docId"] for d in site_docs}
+    vault_docs = [d for d in docs if d["_docId"] not in hidden_ids]
 
     lines = [
         "================================================================",
         "APEX SOLAR WORK — FULL CLOUD & TELEGRAM DISASTER RECOVERY BACKUP",
         f"Backup UTC Time : {backup_time_utc}",
-        f"Total Cloud Docs: {len(docs)} (Vault={len(vault_docs)}, ExpenseSheets={len(exp_docs)})",
+        f"Total Cloud Docs: {len(docs)} (Vault={len(vault_docs)}, ExpenseSheets={len(exp_docs)}, SiteSync={len(site_docs)})",
         f"Expense Entries : {len(expenses)}",
         f"Material Entries: {len(materials)}",
+        f"Site Locations  : {len(sites)}",
         "================================================================",
         "",
-        "--- DAILY KHARCHA SUMMARY BY DATE ---",
+        "--- STORED SITE LOCATIONS & GPS ---",
     ]
+
+    if not sites:
+        lines.append("(None saved in cloud yet)")
+    for idx, s in enumerate(sites, 1):
+        lat = s.get("latitude")
+        lng = s.get("longitude")
+        gps = f"{lat:.6f}, {lng:.6f}" if isinstance(lat, (int, float)) and isinstance(lng, (int, float)) else ""
+        lines.append(f"{idx}. {s.get('name', '')} [{s.get('siteType', '')}]")
+        if s.get("addressOrVillage"):
+            lines.append(f"   Address: {s['addressOrVillage']}")
+        if gps:
+            lines.append(f"   GPS: {gps}")
+        if s.get("googleMapsUrl"):
+            lines.append(f"   Maps: {s['googleMapsUrl']}")
+        if s.get("notes"):
+            lines.append(f"   Notes: {s['notes']}")
+
+    lines.append("\n--- DAILY KHARCHA SUMMARY BY DATE ---")
 
     by_date: dict[str, list[dict[str, Any]]] = {}
     for e in expenses:
@@ -419,8 +460,8 @@ def main() -> int:
         media_dir = run_dir / "media"
 
         docs = fetch_all_company_documents(cfg)
-        expenses, materials = extract_expenses_and_materials(docs)
-        report_txt = build_human_readable_report(backup_time_str, docs, expenses, materials)
+        expenses, materials, sites = extract_expenses_materials_and_sites(docs)
+        report_txt = build_human_readable_report(backup_time_str, docs, expenses, materials, sites)
 
         # Write structured data files
         full_json_path = run_dir / f"apex_firestore_backup_{date_tag}.json"
@@ -433,9 +474,11 @@ def main() -> int:
                     "documentCount": len(docs),
                     "expenseCount": len(expenses),
                     "materialCount": len(materials),
+                    "siteLocationCount": len(sites),
                     "documents": docs,
                     "extractedExpenses": expenses,
                     "extractedMaterials": materials,
+                    "extractedSiteLocations": sites,
                 },
                 indent=2,
                 ensure_ascii=False,
@@ -490,6 +533,7 @@ def main() -> int:
             "docsBackedUp": len(docs),
             "expensesBackedUp": len(expenses),
             "materialsBackedUp": len(materials),
+            "sitesBackedUp": len(sites),
             "mediaFilesCount": len(media_files),
             "notes": notes,
             "uploads": uploads,
@@ -514,7 +558,7 @@ def main() -> int:
             msg_ids = ",".join(str(u.get("telegram_message_id", "?")) for u in uploads)
             print(
                 f"Backup OK ({date_tag}): docs={len(docs)} expenses={len(expenses)} "
-                f"materials={len(materials)} media={len(media_files)} uploads={len(uploads)} msgs={msg_ids}"
+                f"materials={len(materials)} sites={len(sites)} media={len(media_files)} uploads={len(uploads)} msgs={msg_ids}"
             )
         else:
             print(json.dumps(status, indent=2))

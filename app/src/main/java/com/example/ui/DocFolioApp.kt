@@ -27,15 +27,19 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import com.example.data.MediaRelayService
 import com.example.data.SiteExpenseRepository
+import com.example.data.SiteLocationRepository
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -113,6 +117,7 @@ private enum class MainTab(
     VAULT(R.string.nav_vault, Icons.Filled.Folder, Icons.Outlined.Folder, "tab_vault"),
     BY_DATE(R.string.nav_by_date, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth, "tab_by_date"),
     EXPENSES(R.string.nav_expenses, Icons.AutoMirrored.Filled.ReceiptLong, Icons.AutoMirrored.Outlined.ReceiptLong, "tab_expenses"),
+    SITES(R.string.nav_sites, Icons.Filled.LocationOn, Icons.Outlined.LocationOn, "tab_sites"),
     STARRED(R.string.nav_starred, Icons.Filled.Star, Icons.Outlined.StarBorder, "tab_starred")
 }
 
@@ -142,7 +147,8 @@ fun DocFolioApp(
                     currentUserId = effectiveUid,
                     localCache = LocalDocumentCacheRepository(localDb.documentDao()),
                     docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath,
-                    siteExpenseRepository = SiteExpenseRepository(localDb.siteExpenseDao())
+                    siteExpenseRepository = SiteExpenseRepository(localDb.siteExpenseDao()),
+                    siteLocationRepository = SiteLocationRepository(localDb.siteLocationDao())
                 )
             }
         }
@@ -160,6 +166,8 @@ fun DocFolioApp(
     val allExpenses by viewModel.allExpenses.collectAsStateWithLifecycle()
     val allMaterials by viewModel.allMaterials.collectAsStateWithLifecycle()
     val selectedExpenseDateIso by viewModel.selectedExpenseDateIso.collectAsStateWithLifecycle()
+    val allSiteLocations by viewModel.allSiteLocations.collectAsStateWithLifecycle()
+    val isSavingSiteLocation by viewModel.isSavingSiteLocation.collectAsStateWithLifecycle()
 
     val currentAppVersionCode = remember(context) {
         try {
@@ -397,6 +405,7 @@ fun DocFolioApp(
                                     MainTab.VAULT -> "OCR Searchable PDF Archive"
                                     MainTab.BY_DATE -> "Boss Date Register"
                                     MainTab.EXPENSES -> "Daily Kharcha & Site Stock"
+                                    MainTab.SITES -> "Site & Store GPS Locations"
                                     MainTab.STARRED -> "Priority Documents"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
@@ -567,7 +576,14 @@ fun DocFolioApp(
                                         contentDescription = stringResource(tab.labelRes)
                                     )
                                 },
-                                label = { Text(stringResource(tab.labelRes)) },
+                                label = {
+                                    Text(
+                                        text = stringResource(tab.labelRes),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 modifier = Modifier.testTag(tab.testTag)
                             )
                         }
@@ -575,7 +591,7 @@ fun DocFolioApp(
                 }
             },
             floatingActionButton = {
-                if (!useNavigationRail && currentTab != MainTab.EXPENSES) {
+                if (!useNavigationRail && currentTab != MainTab.EXPENSES && currentTab != MainTab.SITES) {
                     ExtendedFloatingActionButton(
                         onClick = { showScanSourceSheet = true },
                         icon = {
@@ -634,7 +650,14 @@ fun DocFolioApp(
                                             contentDescription = stringResource(tab.labelRes)
                                         )
                                     },
-                                    label = { Text(stringResource(tab.labelRes)) },
+                                    label = {
+                                        Text(
+                                            text = stringResource(tab.labelRes),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
                                     modifier = Modifier.testTag(tab.testTag)
                                 )
                             }
@@ -701,6 +724,15 @@ fun DocFolioApp(
                             onAddMaterial = viewModel::addMaterial,
                             onDeleteMaterial = { id, dateIso -> viewModel.deleteMaterial(id, dateIso) },
                             onShareReport = viewModel::shareWhatsAppReport
+                        )
+
+                        MainTab.SITES -> SitesScreen(
+                            sites = allSiteLocations,
+                            isSaving = isSavingSiteLocation,
+                            onSaveSite = viewModel::saveSiteLocation,
+                            onTogglePin = viewModel::togglePinSiteLocation,
+                            onDeleteSite = viewModel::deleteSiteLocation,
+                            onFeedback = viewModel::showMessage
                         )
 
                         MainTab.STARRED -> VaultScreen(

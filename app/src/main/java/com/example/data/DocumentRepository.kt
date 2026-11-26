@@ -481,5 +481,19 @@ class DocumentRepository(
                 doc.id.startsWith("expense_report_") ||
                 doc.ocrFullText.contains(SiteExpenseRepository.EXPENSES_DELIMITER_START)
         }
+
+        /**
+         * Identifies cloud-backed site location sync payloads (`site_locations_master` or
+         * embedded site location JSON) so they stay scoped to the Sites tab and never appear in Vault.
+         */
+        internal fun isSiteLocationSyncDocument(doc: ScannedDocument): Boolean {
+            return doc.id == SiteLocationRepository.CLOUD_SYNC_DOC_ID ||
+                doc.id.startsWith("site_locations_") ||
+                doc.ocrFullText.contains(SiteLocationRepository.LOCATIONS_DELIMITER_START)
+        }
+
+        internal fun isHiddenFromVault(doc: ScannedDocument): Boolean {
+            return isExpenseTabDocument(doc) || isSiteLocationSyncDocument(doc)
+        }
     }
 }

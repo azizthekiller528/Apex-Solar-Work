@@ -6,6 +6,7 @@
     <string name="nav_vault">Vault</string>
     <string name="nav_by_date">By Date</string>
     <string name="nav_expenses">Expenses</string>
+    <string name="nav_sites">Sites</string>
     <string name="nav_starred">Starred</string>
     <string name="action_scan_document">Scan Doc</string>
     <string name="search_placeholder">Date (12/1/2026), slip #, contractor, text…</string>

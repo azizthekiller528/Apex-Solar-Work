@@ -1,8 +1,8 @@
 {
-  "versionCode": 16,
-  "versionName": "2.5",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.5.apk",
-  "sha256": "80079f4f7c90017ef8650679be146498bef99df96fd9f3760b665d7fb121f82c",
-  "sizeBytes": 46341179,
-  "releaseNotes": "• Stopped unnecessary thumbnail cache wipes on launch for landscape seed slips\n• Fixed Firestore 160 KB preview limit errors on dense scans\n• Fixed bundled slip loading in PDFs, backups, rotation, and cloud sync\n• Stopped date typing cursor jumps, stale scan/AI state overwrites, and Main-thread hangs during updates & gallery saves\n• Hardened updater download verification, error feedback, scrollable expense payer chips, and tab preservation"
+  "versionCode": 17,
+  "versionName": "2.6",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.6.apk",
+  "sha256": "7145343ea7f06151539c8d12ad48b977df8d48969560cfdbc396d4ceabedd710",
+  "sizeBytes": 46423491,
+  "releaseNotes": "• Added new Sites tab next to Expenses for storing site & godown GPS coordinates\n• Pre-saved Main Material Store (Chodhary Dhaba, Barauli — 28.264438, 78.048938) with 1-tap Google Maps & Directions redirect\n• Paste any Google Maps link or GPS coordinates to add solar sites, share to WhatsApp, and sync live across phones\n• Non-destructive DB migration & daily Telegram backup support for stored site locations"
 }

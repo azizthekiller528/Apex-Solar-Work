@@ -11,10 +11,13 @@ import com.example.data.DocumentRepository
 import com.example.data.GeminiOcrService
 import com.example.data.MediaRelayService
 import com.example.data.SiteExpenseRepository
+import com.example.data.SiteLocationRepository
 import com.example.data.local.DocumentEntity
 import com.example.data.local.LocalDocumentCacheRepository
 import com.example.data.local.toScannedDocument
 import com.example.data.model.SiteExpense
+import com.example.data.model.SiteLocation
+import com.example.data.model.SiteLocationParser
 import com.example.data.model.SiteMaterialRecord
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
@@ -164,14 +167,15 @@ class DocFolioViewModel(
     private val currentUserId: String,
     private val localCache: LocalDocumentCacheRepository? = null,
     private val docsDirPath: String = "",
-    private val siteExpenseRepository: SiteExpenseRepository? = null
+    private val siteExpenseRepository: SiteExpenseRepository? = null,
+    private val siteLocationRepository: SiteLocationRepository? = null
 ) : ViewModel() {
 
     private val localDocsFlow: Flow<List<ScannedDocument>> =
         (localCache?.observeCachedDocuments(currentUserId) ?: emptyFlow())
             .map { list ->
                 list.map { it.toScannedDocument() }
-                    .filterNot { DocumentRepository.isExpenseTabDocument(it) }
+                    .filterNot { DocumentRepository.isHiddenFromVault(it) }
             }
             .catch { error ->
                 if (error is CancellationException) throw error
@@ -203,6 +207,15 @@ class DocFolioViewModel(
                             Log.w(TAG, "Site expenses cloud sync warning: ${e.message}")
                         }
                     }
+                    if (siteLocationRepository != null) {
+                        try {
+                            siteLocationRepository.syncFromCloudDocuments(docs)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Site locations cloud sync warning: ${e.message}")
+                        }
+                    }
                 }
             }
             .catch { error ->
@@ -214,7 +227,7 @@ class DocFolioViewModel(
 
     val documentsState: StateFlow<UiState<List<ScannedDocument>>> =
         combine(localDocsFlow, cloudDocsFlow) { localDocs, cloudDocs ->
-            val cloud = (cloudDocs ?: emptyList()).filterNot { DocumentRepository.isExpenseTabDocument(it) }
+            val cloud = (cloudDocs ?: emptyList()).filterNot { DocumentRepository.isHiddenFromVault(it) }
             val docs = when {
                 cloud.isEmpty() -> localDocs
                 localDocs.isEmpty() -> cloud
@@ -298,6 +311,22 @@ class DocFolioViewModel(
     private val _selectedExpenseDateIso = MutableStateFlow<String>("")
     val selectedExpenseDateIso: StateFlow<String> = _selectedExpenseDateIso.asStateFlow()
 
+    val allSiteLocations: StateFlow<List<SiteLocation>> =
+        (siteLocationRepository?.allSitesFlow() ?: emptyFlow())
+            .catch { error ->
+                if (error is CancellationException) throw error
+                Log.w(TAG, "Site locations observe error: ${error.message}")
+                emit(emptyList())
+            }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000L),
+                initialValue = emptyList()
+            )
+
+    private val _isSavingSiteLocation = MutableStateFlow(false)
+    val isSavingSiteLocation: StateFlow<Boolean> = _isSavingSiteLocation.asStateFlow()
+
     init {
         viewModelScope.launch {
             try {
@@ -305,6 +334,18 @@ class DocFolioViewModel(
                 syncAllLocalDaysToCloud()
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to seed initial site expenses: ${e.message}")
+            }
+            try {
+                val locRepo = siteLocationRepository
+                if (locRepo != null) {
+                    locRepo.seedDefaultStoreIfEmpty()
+                    val existingCloud = repository.getDocument(SiteLocationRepository.CLOUD_SYNC_DOC_ID).getOrNull()
+                    if (existingCloud == null) {
+                        syncAllSiteLocationsToCloud()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to seed initial site locations: ${e.message}")
             }
         }
     }
@@ -345,7 +386,7 @@ class DocFolioViewModel(
                         .map<List<ScannedDocument>, FirestoreSearchState> { docs ->
                             FirestoreSearchState.Success(
                                 filter = filter,
-                                documents = docs.filterNot { DocumentRepository.isExpenseTabDocument(it) }
+                                documents = docs.filterNot { DocumentRepository.isHiddenFromVault(it) }
                             )
                         }
                         .onStart { emit(FirestoreSearchState.Loading) }
@@ -389,7 +430,7 @@ class DocFolioViewModel(
                     )
                 }
                 .map<List<DocumentEntity>, List<DocumentEntity>?> { list ->
-                    list.filterNot { DocumentRepository.isExpenseTabDocument(it.toScannedDocument()) }
+                    list.filterNot { DocumentRepository.isHiddenFromVault(it.toScannedDocument()) }
                 }
                 .catch { error ->
                     if (error is CancellationException) throw error
@@ -1252,6 +1293,154 @@ class DocFolioViewModel(
                     _events.emit(OneShotEvent.ShowMessage("Could not open share sheet: ${ex.message}"))
                 }
             }
+        }
+    }
+
+    fun showMessage(message: String) {
+        _events.tryEmit(OneShotEvent.ShowMessage(message))
+    }
+
+    fun saveSiteLocation(
+        existingId: String?,
+        name: String,
+        siteType: String,
+        address: String,
+        locationInput: String,
+        notes: String,
+        isPinned: Boolean
+    ) {
+        val repo = siteLocationRepository ?: return
+        if (_isSavingSiteLocation.value) return
+        _isSavingSiteLocation.value = true
+
+        viewModelScope.launch {
+            try {
+                val resolved = repo.resolveGoogleMapsLink(locationInput)
+                val existing = if (!existingId.isNullOrBlank()) {
+                    repo.getAllSites().firstOrNull { it.id == existingId }
+                } else {
+                    null
+                }
+                val lat = resolved.latitude ?: existing?.latitude
+                val lng = resolved.longitude ?: existing?.longitude
+                val mapsUrl = resolved.googleMapsUrl.ifBlank {
+                    existing?.googleMapsUrl?.takeIf { locationInput.isBlank() } ?: ""
+                }
+
+                val saved = repo.upsertSite(
+                    SiteLocation(
+                        id = existingId ?: "",
+                        name = name,
+                        siteType = siteType,
+                        addressOrVillage = address,
+                        latitude = lat,
+                        longitude = lng,
+                        googleMapsUrl = mapsUrl,
+                        notes = notes,
+                        isPinned = isPinned,
+                        createdAtMillis = existing?.createdAtMillis ?: System.currentTimeMillis()
+                    )
+                )
+                syncAllSiteLocationsToCloud()
+                val msg = if (saved.hasCoordinates) {
+                    "Site saved (${saved.formattedCoordinates()})"
+                } else {
+                    "Site link saved"
+                }
+                _events.emit(OneShotEvent.ShowMessage(msg))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to save site: ${e.message}"))
+            } finally {
+                _isSavingSiteLocation.value = false
+            }
+        }
+    }
+
+    fun togglePinSiteLocation(site: SiteLocation) {
+        val repo = siteLocationRepository ?: return
+        viewModelScope.launch {
+            try {
+                repo.upsertSite(site.copy(isPinned = !site.isPinned))
+                syncAllSiteLocationsToCloud()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to update pin: ${e.message}"))
+            }
+        }
+    }
+
+    fun deleteSiteLocation(site: SiteLocation) {
+        val repo = siteLocationRepository ?: return
+        viewModelScope.launch {
+            try {
+                repo.deleteSite(site.id)
+                syncAllSiteLocationsToCloud()
+                _events.emit(OneShotEvent.ShowMessage("Site location deleted"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _events.emit(OneShotEvent.ShowMessage("Failed to delete site: ${e.message}"))
+            }
+        }
+    }
+
+    private suspend fun syncAllSiteLocationsToCloud() {
+        val repo = siteLocationRepository ?: return
+        try {
+            val sites = repo.getAllSites()
+            val docId = SiteLocationRepository.CLOUD_SYNC_DOC_ID
+            val todayIso = DateSearchParser.todayIso()
+            val title = "Apex Solar Site Locations & GPS (${sites.size})".take(200)
+            val summary = "${sites.size} saved site GPS locations for material store & plants.".take(1000)
+            val extractedFields = sites.take(28).map { s ->
+                val gps = if (s.hasCoordinates) " [${s.formattedCoordinates()}]" else ""
+                "${s.name}$gps — ${s.addressOrVillage}".take(290)
+            }
+            val ocrText = SiteLocationRepository.formatCloudSyncText(sites)
+            val existingDoc = repository.getDocument(docId).getOrNull()
+
+            if (existingDoc != null) {
+                repository.updateDocumentMetadata(
+                    docId = docId,
+                    title = title,
+                    category = DocumentCategory.SITE_REPORT,
+                    documentDateIso = todayIso,
+                    filedDateIso = todayIso,
+                    referenceNumber = "SITE-LOCATIONS",
+                    organization = "Apex Solar Work",
+                    contractorOrParty = "Aziz (Site Supervisor)",
+                    summary = summary,
+                    extractedFields = extractedFields,
+                    ocrFullText = ocrText,
+                    localPdfFileName = existingDoc.localPdfFileName
+                )
+            } else {
+                val newDoc = ScannedDocument(
+                    id = docId,
+                    userId = "apex_team",
+                    title = title,
+                    category = DocumentCategory.SITE_REPORT.name,
+                    documentDateIso = todayIso,
+                    filedDateIso = todayIso,
+                    referenceNumber = "SITE-LOCATIONS",
+                    organization = "Apex Solar Work",
+                    contractorOrParty = "Aziz (Site Supervisor)",
+                    summary = summary,
+                    extractedFields = extractedFields,
+                    ocrFullText = ocrText,
+                    localImageFileName = "",
+                    localPdfFileName = "",
+                    previewBase64 = "",
+                    pageCount = 1L,
+                    starred = false
+                )
+                repository.createDocument(docId, newDoc)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to sync site locations to cloud: ${e.message}")
         }
     }
 

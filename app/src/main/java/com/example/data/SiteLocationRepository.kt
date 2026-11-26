@@ -56,17 +56,34 @@ class SiteLocationRepository(
         prefs()?.edit()?.putBoolean(KEY_SYNCED_PACK_V2_7_TO_CLOUD, true)?.apply()
     }
 
+    fun hasSyncedStoreNamesV29ToCloud(): Boolean =
+        prefs()?.getBoolean(KEY_SYNCED_STORE_NAMES_V2_9_TO_CLOUD, false) ?: false
+
+    fun markStoreNamesV29SyncedToCloud() {
+        prefs()?.edit()?.putBoolean(KEY_SYNCED_STORE_NAMES_V2_9_TO_CLOUD, true)?.apply()
+    }
+
     suspend fun seedDefaultSitesIfNeeded(): Boolean = withContext(Dispatchers.IO) {
         val prefs = prefs()
         val alreadySeeded = prefs?.getBoolean(KEY_SEEDED_PACK_V2_7, false) ?: false
         val shouldSeed = !alreadySeeded && (prefs != null || dao.getCount() == 0)
+        var modified = false
         if (shouldSeed) {
             dao.insertDefaultSites(DEFAULT_SITE_LOCATIONS.map { SiteLocationEntity.fromModel(it) })
             prefs?.edit()?.putBoolean(KEY_SEEDED_PACK_V2_7, true)?.apply()
-            true
-        } else {
-            false
+            modified = true
         }
+        val namesAppliedV29 = prefs?.getBoolean(KEY_APPLIED_STORE_NAMES_V2_9, false) ?: false
+        if (!namesAppliedV29 && prefs != null) {
+            val current = dao.getAllSites().map { it.toModel() }
+            val upgraded = current.mapNotNull { upgradeLegacyStoreLocation(it) }
+            if (upgraded.isNotEmpty()) {
+                dao.insertSites(upgraded.map { SiteLocationEntity.fromModel(it) })
+                modified = true
+            }
+            prefs.edit().putBoolean(KEY_APPLIED_STORE_NAMES_V2_9, true).apply()
+        }
+        modified
     }
 
     suspend fun insertSitesIfMissing(sites: List<SiteLocation>) = withContext(Dispatchers.IO) {
@@ -89,10 +106,20 @@ class SiteLocationRepository(
         } ?: return@withContext
 
         if (!syncDoc.ocrFullText.contains(LOCATIONS_DELIMITER_START)) return@withContext
-        val parsed = parseLocationsFromOcrText(syncDoc.ocrFullText)
-        val cloudContainsV27Sites = parsed.any { it.id in V2_7_ADDED_SITE_IDS }
+        val rawParsed = parseLocationsFromOcrText(syncDoc.ocrFullText)
+        val cloudContainsV27Sites = rawParsed.any { it.id in V2_7_ADDED_SITE_IDS }
         if (cloudContainsV27Sites) {
             markSitePackSyncedToCloud()
+        }
+
+        val cloudHasStaleV29StoreNames = hasLegacyStoreNames(rawParsed)
+        if (!cloudHasStaleV29StoreNames) {
+            markStoreNamesV29SyncedToCloud()
+        }
+        val parsed = if (appContext != null && !hasSyncedStoreNamesV29ToCloud() && cloudHasStaleV29StoreNames) {
+            rawParsed.map { upgradeLegacyStoreLocation(it) ?: it }
+        } else {
+            rawParsed
         }
 
         if (parsed.isNotEmpty()) {
@@ -188,6 +215,8 @@ class SiteLocationRepository(
         private const val PREFS_NAME = "apex_site_prefs"
         private const val KEY_SEEDED_PACK_V2_7 = "seeded_site_pack_v2_7"
         private const val KEY_SYNCED_PACK_V2_7_TO_CLOUD = "synced_site_pack_v2_7_to_cloud"
+        private const val KEY_APPLIED_STORE_NAMES_V2_9 = "applied_store_names_v2_9"
+        private const val KEY_SYNCED_STORE_NAMES_V2_9_TO_CLOUD = "synced_store_names_v2_9_to_cloud"
 
         const val CLOUD_SYNC_DOC_ID = "site_locations_master"
         const val LOCATIONS_DELIMITER_START = "=== APEX_SITE_LOCATIONS_V1 ==="
@@ -195,7 +224,7 @@ class SiteLocationRepository(
 
         val DEFAULT_MATERIAL_STORE = SiteLocation(
             id = "site_main_material_store",
-            name = "Main Material Store (Barauli)",
+            name = "Main Material Store (Shikarpur)",
             siteType = SiteLocation.TYPE_STORE,
             addressOrVillage = "Chodhary Dhaba, Barauli, Shikarpur, Bulandshahr, UP 203395",
             latitude = 28.264438,
@@ -207,9 +236,9 @@ class SiteLocationRepository(
 
         val DEFAULT_COMPANY_STORE = SiteLocation(
             id = "site_company_store",
-            name = "Company Store (Chigrawati)",
+            name = "Company Store (Chigrawati, Siyana)",
             siteType = SiteLocation.TYPE_DEPOT,
-            addressOrVillage = "Chigrawati, Syana, Bulandshahr, UP 203412",
+            addressOrVillage = "Chigrawati, Siyana, Bulandshahr, UP 203412",
             latitude = 28.597328,
             longitude = 78.0301394,
             googleMapsUrl = "https://maps.app.goo.gl/iRoa1qusLK4eCTSU9?g_st=ac",
@@ -267,6 +296,49 @@ class SiteLocationRepository(
             DEFAULT_UMRARI_SITE_2,
             DEFAULT_HARJIPURA_SITE_3
         )
+
+        fun upgradeLegacyStoreLocation(site: SiteLocation): SiteLocation? {
+            return when (site.id) {
+                DEFAULT_MATERIAL_STORE.id -> {
+                    if (site.name.equals("Main Material Store (Barauli)", ignoreCase = true) ||
+                        (!site.name.contains("Shikarpur", ignoreCase = true) &&
+                            site.name.startsWith("Main Material Store", ignoreCase = true))
+                    ) {
+                        site.copy(
+                            name = DEFAULT_MATERIAL_STORE.name,
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
+                    } else {
+                        null
+                    }
+                }
+                DEFAULT_COMPANY_STORE.id -> {
+                    if (site.name.equals("Company Store (Chigrawati)", ignoreCase = true) ||
+                        (!site.name.contains("Siyana", ignoreCase = true) &&
+                            site.name.startsWith("Company Store", ignoreCase = true)) ||
+                        site.addressOrVillage.contains("Syana", ignoreCase = false)
+                    ) {
+                        site.copy(
+                            name = if (site.name.startsWith("Company Store", ignoreCase = true) &&
+                                !site.name.contains("Siyana", ignoreCase = true)
+                            ) {
+                                DEFAULT_COMPANY_STORE.name
+                            } else {
+                                site.name
+                            },
+                            addressOrVillage = site.addressOrVillage.replace("Syana", "Siyana"),
+                            updatedAtMillis = System.currentTimeMillis()
+                        )
+                    } else {
+                        null
+                    }
+                }
+                else -> null
+            }
+        }
+
+        fun hasLegacyStoreNames(sites: List<SiteLocation>): Boolean =
+            sites.any { upgradeLegacyStoreLocation(it) != null }
 
         fun serializeLocationsToJson(locations: List<SiteLocation>): String {
             val array = JSONArray()

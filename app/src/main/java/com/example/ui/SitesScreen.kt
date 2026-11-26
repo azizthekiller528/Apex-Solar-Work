@@ -510,6 +510,7 @@ private fun SiteLocationCard(
                 Button(
                     onClick = onOpenMaps,
                     shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("open_maps_btn_${site.id}")
@@ -519,13 +520,19 @@ private fun SiteLocationCard(
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
-                    Text("Open Google Maps", maxLines = 1, softWrap = false)
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = "Google Maps",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
 
                 FilledTonalButton(
                     onClick = onDirections,
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(10.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Directions,
@@ -539,7 +546,8 @@ private fun SiteLocationCard(
                 OutlinedButton(
                     onClick = onShare,
                     shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp)
+                    contentPadding = PaddingValues(0.dp),
+                    modifier = Modifier.width(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,

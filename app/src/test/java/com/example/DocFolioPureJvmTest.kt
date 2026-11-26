@@ -622,18 +622,36 @@ class DocFolioPureJvmTest {
 
         assertEquals(5, parsed.size)
         assertEquals(defaultStore.id, parsed[0].id)
-        assertEquals(defaultStore.name, parsed[0].name)
+        assertEquals("Main Material Store (Shikarpur)", parsed[0].name)
         assertEquals(defaultStore.latitude!!, parsed[0].latitude!!, 0.0001)
         assertEquals(defaultStore.longitude!!, parsed[0].longitude!!, 0.0001)
         assertEquals(defaultStore.googleMapsUrl, parsed[0].googleMapsUrl)
         assertTrue(parsed[0].isPinned)
-        assertEquals("Company Store (Chigrawati)", parsed[1].name)
+        assertEquals("Company Store (Chigrawati, Siyana)", parsed[1].name)
         assertEquals(28.597328, parsed[1].latitude!!, 0.0001)
         assertEquals(78.0301394, parsed[1].longitude!!, 0.0001)
         assertTrue(parsed[1].isPinned)
         assertEquals("Pilkhana Site 1", parsed[2].name)
         assertEquals("Umrari Site 2", parsed[3].name)
         assertEquals("Harjipura Site 3", parsed[4].name)
+
+        val legacySites = listOf(
+            defaultStore.copy(name = "Main Material Store (Barauli)"),
+            com.example.data.SiteLocationRepository.DEFAULT_COMPANY_STORE.copy(
+                name = "Company Store (Chigrawati)",
+                addressOrVillage = "Chigrawati, Syana, Bulandshahr, UP 203412"
+            )
+        )
+        assertTrue(com.example.data.SiteLocationRepository.hasLegacyStoreNames(legacySites))
+        assertEquals(
+            "Main Material Store (Shikarpur)",
+            com.example.data.SiteLocationRepository.upgradeLegacyStoreLocation(legacySites[0])?.name
+        )
+        assertEquals(
+            "Company Store (Chigrawati, Siyana)",
+            com.example.data.SiteLocationRepository.upgradeLegacyStoreLocation(legacySites[1])?.name
+        )
+        assertFalse(com.example.data.SiteLocationRepository.hasLegacyStoreNames(defaultSites))
 
         val syncDoc = ScannedDocument(
             id = com.example.data.SiteLocationRepository.CLOUD_SYNC_DOC_ID,

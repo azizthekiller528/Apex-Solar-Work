@@ -349,13 +349,20 @@ class DocFolioViewModel(
                             ?.let { SiteLocationRepository.parseLocationsFromOcrText(it.ocrFullText) }
                             .orEmpty()
                         val cloudHasV27Pack = cloudSites.any { it.id in SiteLocationRepository.V2_7_ADDED_SITE_IDS }
-                        if (existingCloud == null || (!locRepo.hasSyncedSitePackToCloud() && !cloudHasV27Pack)) {
-                            locRepo.insertSitesIfMissing(SiteLocationRepository.DEFAULT_SITE_LOCATIONS)
+                        val needsV27Push = existingCloud == null || (!locRepo.hasSyncedSitePackToCloud() && !cloudHasV27Pack)
+                        val needsV29NamePush = !locRepo.hasSyncedStoreNamesV29ToCloud() &&
+                            SiteLocationRepository.hasLegacyStoreNames(cloudSites)
+                        if (needsV27Push || needsV29NamePush) {
+                            if (needsV27Push) {
+                                locRepo.insertSitesIfMissing(SiteLocationRepository.DEFAULT_SITE_LOCATIONS)
+                            }
                             if (syncAllSiteLocationsToCloud()) {
                                 locRepo.markSitePackSyncedToCloud()
+                                locRepo.markStoreNamesV29SyncedToCloud()
                             }
                         } else {
                             locRepo.markSitePackSyncedToCloud()
+                            locRepo.markStoreNamesV29SyncedToCloud()
                         }
                     }
                 }

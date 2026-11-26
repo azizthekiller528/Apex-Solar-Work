@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "2.8",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.8.apk",
-  "sha256": "07dc0cae03fbad41098abaf57d607b3dab6bbb5378f2922790c49a43b83acd70",
-  "sizeBytes": 46439879,
-  "releaseNotes": "• Added Company Store (Chigrawati) + Pilkhana Site 1, Umrari Site 2, and Harjipura Site 3 with 1-tap Google Maps\n• Made site saving & cloud sync non-blocking on poor rural signal and serialized with Mutex\n• Prevented re-seeding defaults after intentional delete-all and fixed transient Firestore getDocument update handling\n• Fixed Edit-dialog GPS fallback and added /place/lat,lng + inline parenthesis URL+GPS parser support"
+  "versionCode": 20,
+  "versionName": "2.9",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.9.apk",
+  "sha256": "cf40bc2b05102f89cc1fd0f351549b41d3bb6ce0aae757387d575b7a8404fc50",
+  "sizeBytes": 46439875,
+  "releaseNotes": "• Updated store labels: Main Material Store (Shikarpur) and Company Store (Chigrawati, Siyana) with automatic upgrade sync\n• Fixed button text clipping on site cards (clean 'Google Maps' + 'Go' + Share buttons without truncation)\n• Includes all 5 pre-saved stores & solar sites (Shikarpur, Chigrawati Siyana, Pilkhana 1, Umrari 2, Harjipura 3)\n• Non-blocking offline-safe site sync with Mutex serialization"
 }

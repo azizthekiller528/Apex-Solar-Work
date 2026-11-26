@@ -148,7 +148,7 @@ fun DocFolioApp(
                     localCache = LocalDocumentCacheRepository(localDb.documentDao()),
                     docsDirPath = ImageStorageHelper.getDocsDirectory(app).absolutePath,
                     siteExpenseRepository = SiteExpenseRepository(localDb.siteExpenseDao()),
-                    siteLocationRepository = SiteLocationRepository(localDb.siteLocationDao())
+                    siteLocationRepository = SiteLocationRepository(localDb.siteLocationDao(), app)
                 )
             }
         }

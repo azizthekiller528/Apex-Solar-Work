@@ -338,10 +338,22 @@ class DocFolioViewModel(
             try {
                 val locRepo = siteLocationRepository
                 if (locRepo != null) {
-                    locRepo.seedDefaultStoreIfEmpty()
-                    val existingCloud = repository.getDocument(SiteLocationRepository.CLOUD_SYNC_DOC_ID).getOrNull()
-                    if (existingCloud == null) {
-                        syncAllSiteLocationsToCloud()
+                    locRepo.seedDefaultSitesIfNeeded()
+                    val cloudResult = repository.getDocument(SiteLocationRepository.CLOUD_SYNC_DOC_ID)
+                    if (cloudResult.isSuccess) {
+                        val existingCloud = cloudResult.getOrNull()
+                        val cloudSites = existingCloud
+                            ?.takeIf { it.ocrFullText.contains(SiteLocationRepository.LOCATIONS_DELIMITER_START) }
+                            ?.let { SiteLocationRepository.parseLocationsFromOcrText(it.ocrFullText) }
+                            .orEmpty()
+                        val cloudHasV27Pack = cloudSites.any { it.id in SiteLocationRepository.V2_7_ADDED_SITE_IDS }
+                        if (existingCloud == null || (!locRepo.hasSyncedSitePackToCloud() && !cloudHasV27Pack)) {
+                            locRepo.insertSitesIfMissing(SiteLocationRepository.DEFAULT_SITE_LOCATIONS)
+                            syncAllSiteLocationsToCloud()
+                            locRepo.markSitePackSyncedToCloud()
+                        } else {
+                            locRepo.markSitePackSyncedToCloud()
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -1321,8 +1333,13 @@ class DocFolioViewModel(
                 } else {
                     null
                 }
-                val lat = resolved.latitude ?: existing?.latitude
-                val lng = resolved.longitude ?: existing?.longitude
+                val keepExistingCoords = existing != null && (
+                    locationInput.isBlank() ||
+                        (resolved.googleMapsUrl.isNotBlank() &&
+                            resolved.googleMapsUrl.equals(existing.googleMapsUrl, ignoreCase = true))
+                    )
+                val lat = resolved.latitude ?: if (keepExistingCoords) existing?.latitude else null
+                val lng = resolved.longitude ?: if (keepExistingCoords) existing?.longitude else null
                 val mapsUrl = resolved.googleMapsUrl.ifBlank {
                     existing?.googleMapsUrl?.takeIf { locationInput.isBlank() } ?: ""
                 }

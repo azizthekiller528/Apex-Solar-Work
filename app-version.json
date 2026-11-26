@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "2.6",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.6.apk",
-  "sha256": "7145343ea7f06151539c8d12ad48b977df8d48969560cfdbc396d4ceabedd710",
-  "sizeBytes": 46423491,
-  "releaseNotes": "• Added new Sites tab next to Expenses for storing site & godown GPS coordinates\n• Pre-saved Main Material Store (Chodhary Dhaba, Barauli — 28.264438, 78.048938) with 1-tap Google Maps & Directions redirect\n• Paste any Google Maps link or GPS coordinates to add solar sites, share to WhatsApp, and sync live across phones\n• Non-destructive DB migration & daily Telegram backup support for stored site locations"
+  "versionCode": 18,
+  "versionName": "2.7",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.7.apk",
+  "sha256": "05b8f8a8ff69efcb43b8cf86f6593c921867db3b32ed753468b54c2a38afb2f8",
+  "sizeBytes": 46439875,
+  "releaseNotes": "• Added Company Store (Chigrawati — 28.597328, 78.0301394) as Kalpataru Depot alongside Main Material Store (Barauli)\n• Pre-saved all 3 Solar Sites: Pilkhana Site 1, Umrari Site 2, and Harjipura Site 3 with 1-tap Google Maps links\n• Fixed Edit-dialog GPS fallback so replacing a Maps URL cleanly clears stale coordinates\n• Added /place/lat,lng and inline parenthesis URL+GPS parser support with race-free v2.6→v2.7 cloud merge"
 }

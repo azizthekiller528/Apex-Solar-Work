@@ -1,5 +1,6 @@
 package com.example.data
 
+import android.content.Context
 import com.example.data.local.SiteLocationDao
 import com.example.data.local.SiteLocationEntity
 import com.example.data.model.SiteLocation
@@ -18,7 +19,8 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class SiteLocationRepository(
-    private val dao: SiteLocationDao
+    private val dao: SiteLocationDao,
+    private val appContext: Context? = null
 ) {
     fun allSitesFlow(): Flow<List<SiteLocation>> =
         dao.getAllSitesFlow().map { list -> list.map { it.toModel() } }
@@ -45,10 +47,35 @@ class SiteLocationRepository(
         dao.deleteSite(id)
     }
 
-    suspend fun seedDefaultStoreIfEmpty() = withContext(Dispatchers.IO) {
-        if (dao.getCount() == 0) {
-            dao.insertDefaultSites(listOf(SiteLocationEntity.fromModel(DEFAULT_MATERIAL_STORE)))
+    private fun prefs() = appContext?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    fun hasSyncedSitePackToCloud(): Boolean =
+        prefs()?.getBoolean(KEY_SYNCED_PACK_V2_7_TO_CLOUD, false) ?: false
+
+    fun markSitePackSyncedToCloud() {
+        prefs()?.edit()?.putBoolean(KEY_SYNCED_PACK_V2_7_TO_CLOUD, true)?.apply()
+    }
+
+    suspend fun seedDefaultSitesIfNeeded(): Boolean = withContext(Dispatchers.IO) {
+        val prefs = prefs()
+        val alreadySeeded = prefs?.getBoolean(KEY_SEEDED_PACK_V2_7, false) ?: false
+        if (!alreadySeeded || dao.getCount() == 0) {
+            dao.insertDefaultSites(DEFAULT_SITE_LOCATIONS.map { SiteLocationEntity.fromModel(it) })
+            prefs?.edit()?.putBoolean(KEY_SEEDED_PACK_V2_7, true)?.apply()
+            true
+        } else {
+            false
         }
+    }
+
+    suspend fun insertSitesIfMissing(sites: List<SiteLocation>) = withContext(Dispatchers.IO) {
+        if (sites.isNotEmpty()) {
+            dao.insertDefaultSites(sites.map { SiteLocationEntity.fromModel(it) })
+        }
+    }
+
+    suspend fun seedDefaultStoreIfEmpty() {
+        seedDefaultSitesIfNeeded()
     }
 
     /**
@@ -62,13 +89,25 @@ class SiteLocationRepository(
 
         if (!syncDoc.ocrFullText.contains(LOCATIONS_DELIMITER_START)) return@withContext
         val parsed = parseLocationsFromOcrText(syncDoc.ocrFullText)
+        val cloudContainsV27Sites = parsed.any { it.id in V2_7_ADDED_SITE_IDS }
+        if (cloudContainsV27Sites) {
+            markSitePackSyncedToCloud()
+        }
+
         if (parsed.isNotEmpty()) {
             val validIds = parsed.map { it.id }.filter { it.isNotBlank() }
             if (validIds.isNotEmpty()) {
-                dao.deleteSitesNotIn(validIds)
-                dao.insertSites(parsed.map { SiteLocationEntity.fromModel(it) })
+                val guardNewPackFromStaleV26Cloud =
+                    appContext != null && !hasSyncedSitePackToCloud() && !cloudContainsV27Sites
+                if (guardNewPackFromStaleV26Cloud) {
+                    dao.insertSites(parsed.map { SiteLocationEntity.fromModel(it) })
+                    dao.insertDefaultSites(DEFAULT_SITE_LOCATIONS.map { SiteLocationEntity.fromModel(it) })
+                } else {
+                    dao.deleteSitesNotIn(validIds)
+                    dao.insertSites(parsed.map { SiteLocationEntity.fromModel(it) })
+                }
             }
-        } else {
+        } else if (appContext == null || hasSyncedSitePackToCloud()) {
             dao.deleteAllSites()
         }
     }
@@ -145,6 +184,10 @@ class SiteLocationRepository(
                 .build()
         }
 
+        private const val PREFS_NAME = "apex_site_prefs"
+        private const val KEY_SEEDED_PACK_V2_7 = "seeded_site_pack_v2_7"
+        private const val KEY_SYNCED_PACK_V2_7_TO_CLOUD = "synced_site_pack_v2_7_to_cloud"
+
         const val CLOUD_SYNC_DOC_ID = "site_locations_master"
         const val LOCATIONS_DELIMITER_START = "=== APEX_SITE_LOCATIONS_V1 ==="
         const val LOCATIONS_DELIMITER_END = "=== END_APEX_SITE_LOCATIONS ==="
@@ -159,6 +202,69 @@ class SiteLocationRepository(
             googleMapsUrl = "https://maps.app.goo.gl/rctKU9tbs7g4oYvn8?g_st=ac",
             notes = "Main Godown — All Solar Panels, DC Cables, Structures, Bolts & Hardware stored here (Plus Code: 727X+QH).",
             isPinned = true
+        )
+
+        val DEFAULT_COMPANY_STORE = SiteLocation(
+            id = "site_company_store",
+            name = "Company Store (Chigrawati)",
+            siteType = SiteLocation.TYPE_DEPOT,
+            addressOrVillage = "Chigrawati, Syana, Bulandshahr, UP 203412",
+            latitude = 28.597328,
+            longitude = 78.0301394,
+            googleMapsUrl = "https://maps.app.goo.gl/iRoa1qusLK4eCTSU9?g_st=ac",
+            notes = "Company Store — Place where solar materials are purchased / picked up.",
+            isPinned = true
+        )
+
+        val DEFAULT_PILKHANA_SITE_1 = SiteLocation(
+            id = "site_pilkhana_1",
+            name = "Pilkhana Site 1",
+            siteType = SiteLocation.TYPE_SOLAR_SITE,
+            addressOrVillage = "Pilkhana, Debai, Bulandshahr, UP 203393",
+            latitude = 28.216396,
+            longitude = 78.339329,
+            googleMapsUrl = "https://maps.app.goo.gl/Rsz1G9E5UhKE2SfW7?g_st=aw",
+            notes = "Solar Site 1 — Pilkhana",
+            isPinned = false
+        )
+
+        val DEFAULT_UMRARI_SITE_2 = SiteLocation(
+            id = "site_umrari_2",
+            name = "Umrari Site 2",
+            siteType = SiteLocation.TYPE_SOLAR_SITE,
+            addressOrVillage = "Umrari, Debai, Bulandshahr, UP 203393",
+            latitude = 28.160205,
+            longitude = 78.302028,
+            googleMapsUrl = "",
+            notes = "Solar Site 2 — Umrari (Chilmapur Umrari / Debai block)",
+            isPinned = false
+        )
+
+        val DEFAULT_HARJIPURA_SITE_3 = SiteLocation(
+            id = "site_harjipura_3",
+            name = "Harjipura Site 3",
+            siteType = SiteLocation.TYPE_SOLAR_SITE,
+            addressOrVillage = "Harjipura, Debai, Bulandshahr, UP 203393",
+            latitude = 28.112462,
+            longitude = 78.230293,
+            googleMapsUrl = "https://maps.app.goo.gl/7DoLMHT7d6pgtozbA?g_st=ac",
+            notes = "Solar Site 3 — Harjipura",
+            isPinned = false
+        )
+
+        val V2_7_ADDED_SITE_IDS = setOf(
+            "site_company_store",
+            "site_pilkhana_1",
+            "site_umrari_2",
+            "site_harjipura_3"
+        )
+
+        val DEFAULT_SITE_LOCATIONS = listOf(
+            DEFAULT_MATERIAL_STORE,
+            DEFAULT_COMPANY_STORE,
+            DEFAULT_PILKHANA_SITE_1,
+            DEFAULT_UMRARI_SITE_2,
+            DEFAULT_HARJIPURA_SITE_3
         )
 
         fun serializeLocationsToJson(locations: List<SiteLocation>): String {

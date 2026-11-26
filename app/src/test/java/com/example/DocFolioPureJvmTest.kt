@@ -597,21 +597,43 @@ class DocFolioPureJvmTest {
         assertNotNull(plusCode)
         assertEquals(28.2644375, plusCode!!.first, 0.0001)
         assertEquals(78.0489375, plusCode.second, 0.0001)
+
+        val editedInput = com.example.data.model.SiteLocationParser.parseUserInput(
+            "https://maps.app.goo.gl/rctKU9tbs7g4oYvn8?g_st=ac (28.264438, 78.048938)"
+        )
+        assertEquals("https://maps.app.goo.gl/rctKU9tbs7g4oYvn8?g_st=ac", editedInput.googleMapsUrl)
+        assertEquals(28.264438, editedInput.latitude!!, 0.0001)
+        assertEquals(78.048938, editedInput.longitude!!, 0.0001)
+
+        val placePathUrl = com.example.data.model.SiteLocationParser.parseUserInput(
+            "https://www.google.com/maps/place/28.112462,78.230293/data=!4m6!3m5!1s0!7e2"
+        )
+        assertEquals(28.112462, placePathUrl.latitude!!, 0.0001)
+        assertEquals(78.230293, placePathUrl.longitude!!, 0.0001)
     }
 
     @Test
     fun siteLocationRepository_serializesParsesAndHidesFromVault() {
+        val defaultSites = com.example.data.SiteLocationRepository.DEFAULT_SITE_LOCATIONS
+        assertEquals(5, defaultSites.size)
         val defaultStore = com.example.data.SiteLocationRepository.DEFAULT_MATERIAL_STORE
-        val syncText = com.example.data.SiteLocationRepository.formatCloudSyncText(listOf(defaultStore))
+        val syncText = com.example.data.SiteLocationRepository.formatCloudSyncText(defaultSites)
         val parsed = com.example.data.SiteLocationRepository.parseLocationsFromOcrText(syncText)
 
-        assertEquals(1, parsed.size)
+        assertEquals(5, parsed.size)
         assertEquals(defaultStore.id, parsed[0].id)
         assertEquals(defaultStore.name, parsed[0].name)
         assertEquals(defaultStore.latitude!!, parsed[0].latitude!!, 0.0001)
         assertEquals(defaultStore.longitude!!, parsed[0].longitude!!, 0.0001)
         assertEquals(defaultStore.googleMapsUrl, parsed[0].googleMapsUrl)
         assertTrue(parsed[0].isPinned)
+        assertEquals("Company Store (Chigrawati)", parsed[1].name)
+        assertEquals(28.597328, parsed[1].latitude!!, 0.0001)
+        assertEquals(78.0301394, parsed[1].longitude!!, 0.0001)
+        assertTrue(parsed[1].isPinned)
+        assertEquals("Pilkhana Site 1", parsed[2].name)
+        assertEquals("Umrari Site 2", parsed[3].name)
+        assertEquals("Harjipura Site 3", parsed[4].name)
 
         val syncDoc = ScannedDocument(
             id = com.example.data.SiteLocationRepository.CLOUD_SYNC_DOC_ID,

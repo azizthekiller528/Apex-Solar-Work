@@ -73,6 +73,12 @@ object SiteLocationParser {
         """geo:([-+]?\d{1,2}\.\d{3,}),([-+]?\d{1,3}\.\d{3,})""",
         RegexOption.IGNORE_CASE
     )
+    private val PLACE_PATH_COORD_REGEX = Regex(
+        """/place/([-+]?\d{1,2}\.\d{3,}),([-+]?\d{1,3}\.\d{3,})"""
+    )
+    private val INLINE_PAREN_COORD_REGEX = Regex(
+        """(?:^|[\s(])([-+]?\d{1,2}\.\d{3,})\s*,\s*([-+]?\d{1,3}\.\d{3,})(?:$|[\s)])"""
+    )
     private val URL_REGEX = Regex("""https?://\S+""", RegexOption.IGNORE_CASE)
     private val FULL_PLUS_CODE_REGEX = Regex("""\b([23456789CFGHJMPQRVWX]{4,8}\+[23456789CFGHJMPQRVWX]{2,4})\b""")
 
@@ -98,7 +104,15 @@ object SiteLocationParser {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return null
 
-        val matchers = listOf(DIRECT_COORD_REGEX, GEO_URI_REGEX, BANG_3D4D_REGEX, AT_COORD_REGEX, QUERY_COORD_REGEX)
+        val matchers = listOf(
+            DIRECT_COORD_REGEX,
+            GEO_URI_REGEX,
+            BANG_3D4D_REGEX,
+            PLACE_PATH_COORD_REGEX,
+            AT_COORD_REGEX,
+            QUERY_COORD_REGEX,
+            INLINE_PAREN_COORD_REGEX
+        )
         for (regex in matchers) {
             val match = regex.find(trimmed) ?: continue
             val lat = match.groupValues[1].toDoubleOrNull()

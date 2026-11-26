@@ -36,6 +36,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.Flow
@@ -349,8 +351,9 @@ class DocFolioViewModel(
                         val cloudHasV27Pack = cloudSites.any { it.id in SiteLocationRepository.V2_7_ADDED_SITE_IDS }
                         if (existingCloud == null || (!locRepo.hasSyncedSitePackToCloud() && !cloudHasV27Pack)) {
                             locRepo.insertSitesIfMissing(SiteLocationRepository.DEFAULT_SITE_LOCATIONS)
-                            syncAllSiteLocationsToCloud()
-                            locRepo.markSitePackSyncedToCloud()
+                            if (syncAllSiteLocationsToCloud()) {
+                                locRepo.markSitePackSyncedToCloud()
+                            }
                         } else {
                             locRepo.markSitePackSyncedToCloud()
                         }
@@ -1358,13 +1361,13 @@ class DocFolioViewModel(
                         createdAtMillis = existing?.createdAtMillis ?: System.currentTimeMillis()
                     )
                 )
-                syncAllSiteLocationsToCloud()
                 val msg = if (saved.hasCoordinates) {
                     "Site saved (${saved.formattedCoordinates()})"
                 } else {
                     "Site link saved"
                 }
                 _events.emit(OneShotEvent.ShowMessage(msg))
+                viewModelScope.launch { syncAllSiteLocationsToCloud() }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1394,8 +1397,8 @@ class DocFolioViewModel(
         viewModelScope.launch {
             try {
                 repo.deleteSite(site.id)
-                syncAllSiteLocationsToCloud()
                 _events.emit(OneShotEvent.ShowMessage("Site location deleted"))
+                syncAllSiteLocationsToCloud()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -1404,8 +1407,10 @@ class DocFolioViewModel(
         }
     }
 
-    private suspend fun syncAllSiteLocationsToCloud() {
-        val repo = siteLocationRepository ?: return
+    private val siteCloudSyncMutex = Mutex()
+
+    private suspend fun syncAllSiteLocationsToCloud(): Boolean = siteCloudSyncMutex.withLock {
+        val repo = siteLocationRepository ?: return@withLock false
         try {
             val sites = repo.getAllSites()
             val docId = SiteLocationRepository.CLOUD_SYNC_DOC_ID
@@ -1417,9 +1422,10 @@ class DocFolioViewModel(
                 "${s.name}$gps — ${s.addressOrVillage}".take(290)
             }
             val ocrText = SiteLocationRepository.formatCloudSyncText(sites)
-            val existingDoc = repository.getDocument(docId).getOrNull()
+            val cloudResult = repository.getDocument(docId)
+            val existingDoc = cloudResult.getOrNull()
 
-            if (existingDoc != null) {
+            if (cloudResult.isFailure || existingDoc != null) {
                 repository.updateDocumentMetadata(
                     docId = docId,
                     title = title,
@@ -1432,8 +1438,8 @@ class DocFolioViewModel(
                     summary = summary,
                     extractedFields = extractedFields,
                     ocrFullText = ocrText,
-                    localPdfFileName = existingDoc.localPdfFileName
-                )
+                    localPdfFileName = existingDoc?.localPdfFileName ?: ""
+                ).isSuccess
             } else {
                 val newDoc = ScannedDocument(
                     id = docId,
@@ -1454,10 +1460,13 @@ class DocFolioViewModel(
                     pageCount = 1L,
                     starred = false
                 )
-                repository.createDocument(docId, newDoc)
+                repository.createDocument(docId, newDoc).isSuccess
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "Failed to sync site locations to cloud: ${e.message}")
+            false
         }
     }
 

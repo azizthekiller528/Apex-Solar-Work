@@ -59,7 +59,8 @@ class SiteLocationRepository(
     suspend fun seedDefaultSitesIfNeeded(): Boolean = withContext(Dispatchers.IO) {
         val prefs = prefs()
         val alreadySeeded = prefs?.getBoolean(KEY_SEEDED_PACK_V2_7, false) ?: false
-        if (!alreadySeeded || dao.getCount() == 0) {
+        val shouldSeed = !alreadySeeded && (prefs != null || dao.getCount() == 0)
+        if (shouldSeed) {
             dao.insertDefaultSites(DEFAULT_SITE_LOCATIONS.map { SiteLocationEntity.fromModel(it) })
             prefs?.edit()?.putBoolean(KEY_SEEDED_PACK_V2_7, true)?.apply()
             true

@@ -644,4 +644,60 @@ class DocFolioPureJvmTest {
         assertTrue(DocumentRepository.isSiteLocationSyncDocument(syncDoc))
         assertTrue(DocumentRepository.isHiddenFromVault(syncDoc))
     }
+
+    @Test
+    fun siteLocationRepository_syncFromCloudDocuments_handlesUpdatesAndDeletions() = kotlinx.coroutines.runBlocking {
+        val storeMap = linkedMapOf<String, com.example.data.local.SiteLocationEntity>()
+        val fakeDao = object : com.example.data.local.SiteLocationDao {
+            override fun getAllSitesFlow() = kotlinx.coroutines.flow.emptyFlow<List<com.example.data.local.SiteLocationEntity>>()
+            override suspend fun getAllSites() = storeMap.values.toList()
+            override suspend fun insertSite(site: com.example.data.local.SiteLocationEntity) {
+                storeMap[site.id] = site
+            }
+            override suspend fun insertSites(sites: List<com.example.data.local.SiteLocationEntity>) {
+                sites.forEach { storeMap[it.id] = it }
+            }
+            override suspend fun insertDefaultSites(sites: List<com.example.data.local.SiteLocationEntity>) {
+                sites.forEach { storeMap.putIfAbsent(it.id, it) }
+            }
+            override suspend fun deleteSite(id: String) {
+                storeMap.remove(id)
+            }
+            override suspend fun deleteSitesNotIn(validIds: List<String>) {
+                val keep = validIds.toSet()
+                storeMap.keys.removeAll { it !in keep }
+            }
+            override suspend fun deleteAllSites() {
+                storeMap.clear()
+            }
+            override suspend fun getCount() = storeMap.size
+        }
+
+        val repo = com.example.data.SiteLocationRepository(fakeDao)
+        assertTrue(repo.seedDefaultSitesIfNeeded())
+        assertEquals(5, fakeDao.getCount())
+        assertFalse(repo.seedDefaultSitesIfNeeded())
+
+        val subset = listOf(
+            com.example.data.SiteLocationRepository.DEFAULT_MATERIAL_STORE,
+            com.example.data.SiteLocationRepository.DEFAULT_PILKHANA_SITE_1
+        )
+        val partialDoc = ScannedDocument(
+            id = com.example.data.SiteLocationRepository.CLOUD_SYNC_DOC_ID,
+            title = "Apex Solar Site Locations",
+            category = DocumentCategory.SITE_REPORT.name,
+            ocrFullText = com.example.data.SiteLocationRepository.formatCloudSyncText(subset)
+        )
+        repo.syncFromCloudDocuments(listOf(partialDoc))
+        assertEquals(2, fakeDao.getCount())
+        assertTrue(storeMap.containsKey("site_main_material_store"))
+        assertTrue(storeMap.containsKey("site_pilkhana_1"))
+        assertFalse(storeMap.containsKey("site_company_store"))
+
+        val emptyDoc = partialDoc.copy(
+            ocrFullText = com.example.data.SiteLocationRepository.formatCloudSyncText(emptyList())
+        )
+        repo.syncFromCloudDocuments(listOf(emptyDoc))
+        assertEquals(0, fakeDao.getCount())
+    }
 }

@@ -1,8 +1,8 @@
 {
-  "versionCode": 18,
-  "versionName": "2.7",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.7.apk",
-  "sha256": "05b8f8a8ff69efcb43b8cf86f6593c921867db3b32ed753468b54c2a38afb2f8",
-  "sizeBytes": 46439875,
-  "releaseNotes": "• Added Company Store (Chigrawati — 28.597328, 78.0301394) as Kalpataru Depot alongside Main Material Store (Barauli)\n• Pre-saved all 3 Solar Sites: Pilkhana Site 1, Umrari Site 2, and Harjipura Site 3 with 1-tap Google Maps links\n• Fixed Edit-dialog GPS fallback so replacing a Maps URL cleanly clears stale coordinates\n• Added /place/lat,lng and inline parenthesis URL+GPS parser support with race-free v2.6→v2.7 cloud merge"
+  "versionCode": 19,
+  "versionName": "2.8",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.8.apk",
+  "sha256": "07dc0cae03fbad41098abaf57d607b3dab6bbb5378f2922790c49a43b83acd70",
+  "sizeBytes": 46439879,
+  "releaseNotes": "• Added Company Store (Chigrawati) + Pilkhana Site 1, Umrari Site 2, and Harjipura Site 3 with 1-tap Google Maps\n• Made site saving & cloud sync non-blocking on poor rural signal and serialized with Mutex\n• Prevented re-seeding defaults after intentional delete-all and fixed transient Firestore getDocument update handling\n• Fixed Edit-dialog GPS fallback and added /place/lat,lng + inline parenthesis URL+GPS parser support"
 }

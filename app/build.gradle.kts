@@ -16,8 +16,8 @@ android {
     applicationId = "com.aistudio.docfolio.krmvqx"
     minSdk = 24
     targetSdk = 36
-    versionCode = 21
-    versionName = "2.10"
+    versionCode = 22
+    versionName = "2.11"
 
     // App Check debug token for locally built debug APKs. Firebase AI Logic requires a valid
     // App Check token; debug builds use DebugAppCheckProviderFactory, and the token it presents

@@ -1,8 +1,8 @@
 {
-  "versionCode": 21,
-  "versionName": "2.10",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.10.apk",
-  "sha256": "35a8eccf7b585fdac654c088a3b4eb28faa5a4cb14105d846fc6e23c5fdffd5a",
+  "versionCode": 22,
+  "versionName": "2.11",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.11.apk",
+  "sha256": "da6414427f3d48876720e9c205ac941fe72a1ddd3de6619284280ce086e09ad9",
   "sizeBytes": 46456255,
-  "releaseNotes": "• Expenses: Full multi-line item names so long descriptions never cut off with ...\n• Added Edit button on both Expenses and Material Stock rows (updates live across phones even when changing dates)\n• Added Delete confirmation popup before removing any expense or material record"
+  "releaseNotes": "• Obsidian Dark & Ivory Light theme overhaul with crisp cobalt accents (eliminates muddy brown nav pills & buttons)\n• Unified 16dp card corners, 1dp hairline chrome dividers, and zero tonal color wash\n• Indian comma tabular ₹ amounts and dark-safe OUT/STORE stock badges on Expenses tab"
 }

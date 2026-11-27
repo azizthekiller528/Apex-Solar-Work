@@ -63,19 +63,19 @@ private val DarkColors = darkColorScheme(
     surfaceContainerLowest = DarkCanvas,
     surfaceContainerLow = DarkSurface,
     surfaceContainer = DarkSurfaceHigh,
-    surfaceContainerHigh = Color(0xFF24374A),
+    surfaceContainerHigh = DarkSurfaceHighest,
     outline = DarkOutline,
-    outlineVariant = Color(0xFF223344),
-    error = Color(0xFFFF8BA4),
-    onError = Color(0xFF5A0B20),
-    errorContainer = Color(0xFF7B1B36),
-    onErrorContainer = Color(0xFFFFD9E1)
+    outlineVariant = DarkOutlineVariant,
+    error = Color(0xFFFB7185),
+    onError = Color(0xFF4C0519),
+    errorContainer = Color(0xFF4C1123),
+    onErrorContainer = Color(0xFFFFE4E6)
 )
 
 val DocFolioShapes = Shapes(
     extraSmall = RoundedCornerShape(6.dp),
     small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(16.dp),
     large = RoundedCornerShape(20.dp),
     extraLarge = RoundedCornerShape(26.dp)
 )

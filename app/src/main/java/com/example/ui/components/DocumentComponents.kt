@@ -314,7 +314,7 @@ fun DocumentLedgerCard(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        tonalElevation = 1.dp
+        tonalElevation = 0.dp
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(

@@ -188,8 +188,9 @@ fun SitesScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                    )
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Row(
                         modifier = Modifier
@@ -378,8 +379,12 @@ private fun SiteLocationCard(
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(
-            width = if (site.isPinned) 1.5.dp else 1.dp,
-            color = if (site.isPinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+            width = 1.dp,
+            color = if (site.isPinned) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant
+            }
         )
     ) {
         Column(
@@ -452,7 +457,7 @@ private fun SiteLocationCard(
             // GPS Coordinates / Link readout pill
             if (site.hasCoordinates || site.googleMapsUrl.isNotBlank()) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.surfaceContainer,
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -532,6 +537,10 @@ private fun SiteLocationCard(
                 FilledTonalButton(
                     onClick = onDirections,
                     shape = RoundedCornerShape(10.dp),
+                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Icon(
@@ -546,6 +555,7 @@ private fun SiteLocationCard(
                 OutlinedButton(
                     onClick = onShare,
                     shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.width(48.dp)
                 ) {

@@ -50,11 +50,13 @@ import com.example.util.AppUpdateManager
 import com.example.viewmodel.AppUpdateState
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -377,42 +379,49 @@ fun DocFolioApp(
 
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = stringResource(R.string.app_name),
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Surface(
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    shape = RoundedCornerShape(6.dp)
-                                ) {
+                Column {
+                    TopAppBar(
+                        title = {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "v${BuildConfig.VERSION_NAME}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        text = stringResource(R.string.app_name),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            1.dp,
+                                            MaterialTheme.colorScheme.outlineVariant
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "v${BuildConfig.VERSION_NAME}",
+                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                fontFamily = com.example.ui.theme.JetBrainsMonoFontFamily,
+                                                fontWeight = FontWeight.SemiBold
+                                            ),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
                                 }
+                                Text(
+                                    text = when (currentTab) {
+                                        MainTab.VAULT -> "OCR Searchable PDF Archive"
+                                        MainTab.BY_DATE -> "Boss Date Register"
+                                        MainTab.EXPENSES -> "Daily Kharcha & Site Stock"
+                                        MainTab.SITES -> "Site & Store GPS Locations"
+                                        MainTab.STARRED -> "Priority Documents"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                            Text(
-                                text = when (currentTab) {
-                                    MainTab.VAULT -> "OCR Searchable PDF Archive"
-                                    MainTab.BY_DATE -> "Boss Date Register"
-                                    MainTab.EXPENSES -> "Daily Kharcha & Site Stock"
-                                    MainTab.SITES -> "Site & Store GPS Locations"
-                                    MainTab.STARRED -> "Priority Documents"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
+                        },
                     actions = {
                         Box {
                             IconButton(
@@ -555,37 +564,56 @@ fun DocFolioApp(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.background
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
                 )
+                    HorizontalDivider(
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
             },
             bottomBar = {
                 if (!useNavigationRail) {
-                    NavigationBar(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        windowInsets = WindowInsets.navigationBars
-                    ) {
-                        MainTab.entries.forEach { tab ->
-                            val selected = currentTab == tab
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = { currentTab = tab },
-                                icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                        contentDescription = stringResource(tab.labelRes)
-                                    )
-                                },
-                                label = {
-                                    Text(
-                                        text = stringResource(tab.labelRes),
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                modifier = Modifier.testTag(tab.testTag)
-                            )
+                    Column {
+                        HorizontalDivider(
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        NavigationBar(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            tonalElevation = 0.dp,
+                            windowInsets = WindowInsets.navigationBars
+                        ) {
+                            MainTab.entries.forEach { tab ->
+                                val selected = currentTab == tab
+                                NavigationBarItem(
+                                    selected = selected,
+                                    onClick = { currentTab = tab },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                            contentDescription = stringResource(tab.labelRes)
+                                        )
+                                    },
+                                    label = {
+                                        Text(
+                                            text = stringResource(tab.labelRes),
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                                        indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    modifier = Modifier.testTag(tab.testTag)
+                                )
+                            }
                         }
                     }
                 }

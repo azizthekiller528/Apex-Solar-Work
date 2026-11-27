@@ -1,6 +1,7 @@
 package com.example.ui
 
 import android.content.Context
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -46,6 +47,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -78,6 +80,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SiteExpense
 import com.example.data.model.SiteMaterialRecord
+import com.example.ui.theme.JetBrainsMonoFontFamily
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -158,10 +162,10 @@ fun ExpensesScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             // Header: Date Selector Chips Row
             Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                color = MaterialTheme.colorScheme.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
                     LazyRow(
                         state = dateListState,
                         modifier = Modifier.fillMaxWidth(),
@@ -191,6 +195,7 @@ fun ExpensesScreen(
                             OutlinedButton(
                                 onClick = { showDatePicker = true },
                                 modifier = Modifier.height(32.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
                             ) {
                                 Icon(
@@ -210,7 +215,13 @@ fun ExpensesScreen(
                     TabRow(
                         selectedTabIndex = activeSubTab,
                         containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary
+                        contentColor = MaterialTheme.colorScheme.primary,
+                        divider = {
+                            HorizontalDivider(
+                                thickness = 1.dp,
+                                color = MaterialTheme.colorScheme.outlineVariant
+                            )
+                        }
                     ) {
                         Tab(
                             selected = activeSubTab == 0,
@@ -250,15 +261,15 @@ fun ExpensesScreen(
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
                         ),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
+                                .padding(14.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -267,7 +278,7 @@ fun ExpensesScreen(
                                     text = formattedDateHeader,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
                                     text = "Apex Solar Site Log • $effectiveDateIso",
@@ -287,10 +298,10 @@ fun ExpensesScreen(
                                     )
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF25D366),
+                                    containerColor = Color(0xFF168A3E),
                                     contentColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Share,
@@ -305,19 +316,19 @@ fun ExpensesScreen(
                 }
 
                 if (activeSubTab == 0) {
-                    // Total Expense Card (Glowing Neon Clipboard Header)
+                    // Total Expense Summary Card
                     item {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+                                containerColor = MaterialTheme.colorScheme.surface
                             ),
-                            shape = RoundedCornerShape(14.dp),
+                            shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .border(
-                                    1.5.dp,
-                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                                    RoundedCornerShape(14.dp)
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant,
+                                    RoundedCornerShape(16.dp)
                                 )
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
@@ -328,14 +339,16 @@ fun ExpensesScreen(
                                 ) {
                                     Text(
                                         text = "TOTAL EXPENSE",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
+                                        style = MaterialTheme.typography.labelMedium,
+                                        letterSpacing = 0.8.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "₹ ${totalExpenseAmount.toInt()}",
-                                        style = MaterialTheme.typography.headlineMedium,
-                                        fontWeight = FontWeight.ExtraBold,
+                                        text = "₹ ${formatInr(totalExpenseAmount.toInt())}",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            fontFamily = JetBrainsMonoFontFamily,
+                                            fontWeight = FontWeight.Bold
+                                        ),
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
@@ -350,13 +363,8 @@ fun ExpensesScreen(
                                     ) {
                                         payerBreakdown.forEach { (payer, amt) ->
                                             Surface(
-                                                color = MaterialTheme.colorScheme.surface,
-                                                shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.border(
-                                                    1.dp,
-                                                    MaterialTheme.colorScheme.outlineVariant,
-                                                    RoundedCornerShape(8.dp)
-                                                )
+                                                color = MaterialTheme.colorScheme.surfaceContainer,
+                                                shape = RoundedCornerShape(10.dp)
                                             ) {
                                                 Row(
                                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -372,13 +380,16 @@ fun ExpensesScreen(
                                                     Text(
                                                         text = "$payer: ",
                                                         style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Medium
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
                                                     Text(
-                                                        text = "₹ ${amt.toInt()}",
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.primary
+                                                        text = "₹ ${formatInr(amt.toInt())}",
+                                                        style = MaterialTheme.typography.bodySmall.copy(
+                                                            fontFamily = JetBrainsMonoFontFamily,
+                                                            fontWeight = FontWeight.Bold
+                                                        ),
+                                                        color = MaterialTheme.colorScheme.onSurface
                                                     )
                                                 }
                                             }
@@ -636,6 +647,9 @@ fun ExpensesScreen(
     }
 }
 
+private fun formatInr(amount: Int): String =
+    NumberFormat.getNumberInstance(Locale("en", "IN")).format(amount)
+
 @Composable
 private fun ExpenseItemRow(
     expense: SiteExpense,
@@ -644,10 +658,10 @@ private fun ExpenseItemRow(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -662,7 +676,7 @@ private fun ExpenseItemRow(
                     "FOOD" -> Color(0xFFFF9800).copy(alpha = 0.15f)
                     "HARDWARE" -> Color(0xFF2196F3).copy(alpha = 0.15f)
                     "REPAIR" -> Color(0xFF9C27B0).copy(alpha = 0.15f)
-                    else -> MaterialTheme.colorScheme.secondaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceContainer
                 },
                 shape = CircleShape,
                 modifier = Modifier.size(40.dp)
@@ -677,7 +691,7 @@ private fun ExpenseItemRow(
                             "FOOD" -> Color(0xFFF57C00)
                             "HARDWARE" -> Color(0xFF1976D2)
                             "REPAIR" -> Color(0xFF7B1FA2)
-                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
                 }
@@ -702,12 +716,13 @@ private fun ExpenseItemRow(
                 ) {
                     if (expense.quantityNote.isNotBlank()) {
                         Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(4.dp)
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 text = expense.quantityNote,
                                 style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -715,8 +730,8 @@ private fun ExpenseItemRow(
 
                     val payer = if (expense.paidBy.isBlank()) "Aziz" else expense.paidBy
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(4.dp)
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "Paid by $payer",
@@ -736,9 +751,11 @@ private fun ExpenseItemRow(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 Text(
-                    text = "₹ ${expense.amount.toInt()}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
+                    text = "₹ ${formatInr(expense.amount.toInt())}",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontWeight = FontWeight.Bold
+                    ),
                     color = MaterialTheme.colorScheme.primary
                 )
 
@@ -779,10 +796,10 @@ private fun MaterialItemRow(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
     ) {
         Row(
             modifier = Modifier
@@ -792,15 +809,18 @@ private fun MaterialItemRow(
         ) {
             // S.No
             Surface(
-                color = MaterialTheme.colorScheme.secondaryContainer,
+                color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = CircleShape,
                 modifier = Modifier.size(34.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = "${material.sNo}",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontFamily = JetBrainsMonoFontFamily,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -829,15 +849,16 @@ private fun MaterialItemRow(
                 ) {
                     // Out badge
                     Surface(
-                        color = Color(0xFFFFEBEE),
-                        shape = RoundedCornerShape(4.dp),
-                        modifier = Modifier.border(1.dp, Color(0xFFEF9A9A), RoundedCornerShape(4.dp))
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(6.dp)
                     ) {
                         Text(
                             text = "OUT: ${material.qtyOut}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC62828),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontFamily = JetBrainsMonoFontFamily,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -845,15 +866,16 @@ private fun MaterialItemRow(
                     // Left in Store badge
                     if (material.qtyInStore.isNotBlank()) {
                         Surface(
-                            color = Color(0xFFE8F5E9),
-                            shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.border(1.dp, Color(0xFFA5D6A7), RoundedCornerShape(4.dp))
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
                                 text = "STORE: ${material.qtyInStore}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2E7D32),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontFamily = JetBrainsMonoFontFamily,
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -892,11 +914,12 @@ private fun MaterialItemRow(
 @Composable
 private fun EmptyStateNotice(title: String, message: String) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 24.dp)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
     ) {
         Column(
             modifier = Modifier

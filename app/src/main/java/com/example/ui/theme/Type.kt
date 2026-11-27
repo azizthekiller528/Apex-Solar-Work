@@ -119,10 +119,10 @@ val Typography = Typography(
         letterSpacing = 0.2.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = JetBrainsMonoFontFamily,
+        fontFamily = PlusJakartaSansFontFamily,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 14.sp,
-        letterSpacing = 0.3.sp
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.2.sp
     )
 )

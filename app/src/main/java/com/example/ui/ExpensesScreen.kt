@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Person
@@ -73,7 +74,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SiteExpense
@@ -95,12 +95,18 @@ fun ExpensesScreen(
     onAddMaterial: (SiteMaterialRecord) -> Unit,
     onDeleteMaterial: (id: String, dateIso: String) -> Unit,
     onShareReport: (context: Context, dateFormatted: String, expenses: List<SiteExpense>, materials: List<SiteMaterialRecord>) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onUpdateExpense: (previousDateIso: String, SiteExpense) -> Unit = { _, exp -> onAddExpense(exp) },
+    onUpdateMaterial: (previousDateIso: String, SiteMaterialRecord) -> Unit = { _, mat -> onAddMaterial(mat) }
 ) {
     val context = LocalContext.current
     var activeSubTab by remember { mutableIntStateOf(0) } // 0 = Kharcha (Expenses), 1 = Materials (Stock)
-    var showAddExpenseDialog by remember { mutableStateOf(false) }
-    var showAddMaterialDialog by remember { mutableStateOf(false) }
+    var showExpenseEditorDialog by remember { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<SiteExpense?>(null) }
+    var showMaterialEditorDialog by remember { mutableStateOf(false) }
+    var editingMaterial by remember { mutableStateOf<SiteMaterialRecord?>(null) }
+    var pendingDeleteExpense by remember { mutableStateOf<SiteExpense?>(null) }
+    var pendingDeleteMaterial by remember { mutableStateOf<SiteMaterialRecord?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     // Collect all unique dates from expenses and materials plus selected date, sorted descending
@@ -394,7 +400,11 @@ fun ExpensesScreen(
                         items(currentDayExpenses, key = { it.id }) { expense ->
                             ExpenseItemRow(
                                 expense = expense,
-                                onDelete = { onDeleteExpense(expense.id, expense.dateIso) }
+                                onEdit = {
+                                    editingExpense = expense
+                                    showExpenseEditorDialog = true
+                                },
+                                onDelete = { pendingDeleteExpense = expense }
                             )
                         }
                     }
@@ -442,7 +452,11 @@ fun ExpensesScreen(
                         items(currentDayMaterials, key = { it.id }) { mat ->
                             MaterialItemRow(
                                 material = mat,
-                                onDelete = { onDeleteMaterial(mat.id, mat.dateIso) }
+                                onEdit = {
+                                    editingMaterial = mat
+                                    showMaterialEditorDialog = true
+                                },
+                                onDelete = { pendingDeleteMaterial = mat }
                             )
                         }
                     }
@@ -454,9 +468,11 @@ fun ExpensesScreen(
         FloatingActionButton(
             onClick = {
                 if (activeSubTab == 0) {
-                    showAddExpenseDialog = true
+                    editingExpense = null
+                    showExpenseEditorDialog = true
                 } else {
-                    showAddMaterialDialog = true
+                    editingMaterial = null
+                    showMaterialEditorDialog = true
                 }
             },
             containerColor = MaterialTheme.colorScheme.primary,
@@ -480,30 +496,108 @@ fun ExpensesScreen(
         }
     }
 
-    // Add Expense Dialog
-    if (showAddExpenseDialog) {
-        AddExpenseDialog(
+    // Add / Edit Expense Dialog
+    if (showExpenseEditorDialog) {
+        val currentEdit = editingExpense
+        ExpenseEditorDialog(
+            initial = currentEdit,
             defaultDateIso = effectiveDateIso,
-            onDismiss = { showAddExpenseDialog = false },
-            onConfirm = { newExpense ->
-                onAddExpense(newExpense)
-                onSelectDate(newExpense.dateIso)
-                showAddExpenseDialog = false
+            onDismiss = {
+                showExpenseEditorDialog = false
+                editingExpense = null
+            },
+            onConfirm = { savedExpense ->
+                val previousDate = currentEdit?.dateIso ?: ""
+                showExpenseEditorDialog = false
+                editingExpense = null
+                if (currentEdit == null) {
+                    onAddExpense(savedExpense)
+                } else {
+                    onUpdateExpense(previousDate, savedExpense)
+                }
+                onSelectDate(savedExpense.dateIso)
             }
         )
     }
 
-    // Add Material Dialog
-    if (showAddMaterialDialog) {
+    // Add / Edit Material Dialog
+    if (showMaterialEditorDialog) {
+        val currentEdit = editingMaterial
         val nextSNo = (currentDayMaterials.maxOfOrNull { it.sNo } ?: 0) + 1
-        AddMaterialDialog(
+        MaterialEditorDialog(
+            initial = currentEdit,
             defaultDateIso = effectiveDateIso,
             defaultSNo = nextSNo,
-            onDismiss = { showAddMaterialDialog = false },
-            onConfirm = { newMat ->
-                onAddMaterial(newMat)
-                onSelectDate(newMat.dateIso)
-                showAddMaterialDialog = false
+            onDismiss = {
+                showMaterialEditorDialog = false
+                editingMaterial = null
+            },
+            onConfirm = { savedMat ->
+                val previousDate = currentEdit?.dateIso ?: ""
+                showMaterialEditorDialog = false
+                editingMaterial = null
+                if (currentEdit == null) {
+                    onAddMaterial(savedMat)
+                } else {
+                    onUpdateMaterial(previousDate, savedMat)
+                }
+                onSelectDate(savedMat.dateIso)
+            }
+        )
+    }
+
+    pendingDeleteExpense?.let { expToDelete ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteExpense = null },
+            title = { Text("Delete expense?") },
+            text = {
+                Text(
+                    "Remove \"${expToDelete.title}\" (₹ ${expToDelete.amount.toInt()}) from ${formatChipDate(expToDelete.dateIso)}?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingDeleteExpense = null
+                        onDeleteExpense(expToDelete.id, expToDelete.dateIso)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteExpense = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    pendingDeleteMaterial?.let { matToDelete ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteMaterial = null },
+            title = { Text("Delete material record?") },
+            text = {
+                Text(
+                    "Remove \"${matToDelete.itemName}\" (OUT: ${matToDelete.qtyOut}) from ${formatChipDate(matToDelete.dateIso)}?"
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingDeleteMaterial = null
+                        onDeleteMaterial(matToDelete.id, matToDelete.dateIso)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteMaterial = null }) {
+                    Text("Cancel")
+                }
             }
         )
     }
@@ -545,6 +639,7 @@ fun ExpensesScreen(
 @Composable
 private fun ExpenseItemRow(
     expense: SiteExpense,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -590,18 +685,18 @@ private fun ExpenseItemRow(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Details
+            // Details (untruncated so long items/notes are fully readable)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = expense.title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    fontWeight = FontWeight.SemiBold
                 )
 
                 Row(
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -635,21 +730,42 @@ private fun ExpenseItemRow(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // Amount
-            Text(
-                text = "₹ ${expense.amount.toInt()}",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
+            // Amount + Edit/Delete stacked so left title keeps generous width on phones
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = "₹ ${expense.amount.toInt()}",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onEdit,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit expense",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete expense",
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -658,6 +774,7 @@ private fun ExpenseItemRow(
 @Composable
 private fun MaterialItemRow(
     material: SiteMaterialRecord,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -744,13 +861,29 @@ private fun MaterialItemRow(
                 }
             }
 
-            IconButton(onClick = onDelete) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Delete",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                    modifier = Modifier.size(20.dp)
-                )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Edit material",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete material",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }
@@ -796,24 +929,43 @@ private fun EmptyStateNotice(title: String, message: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddExpenseDialog(
+private fun ExpenseEditorDialog(
+    initial: SiteExpense?,
     defaultDateIso: String,
     onDismiss: () -> Unit,
     onConfirm: (SiteExpense) -> Unit
 ) {
-    var expenseDateIso by remember { mutableStateOf(defaultDateIso) }
+    var expenseDateIso by remember { mutableStateOf(initial?.dateIso?.ifBlank { defaultDateIso } ?: defaultDateIso) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
-    var title by remember { mutableStateOf("") }
-    var amountText by remember { mutableStateOf("") }
-    var quantityNote by remember { mutableStateOf("") }
-    var paidBy by remember { mutableStateOf("Aziz") }
-    var category by remember { mutableStateOf("FUEL") }
+    var title by remember { mutableStateOf(initial?.title ?: "") }
+    var amountText by remember {
+        mutableStateOf(
+            initial?.amount?.let { amt ->
+                if (amt % 1.0 == 0.0) {
+                    amt.toLong().toString()
+                } else {
+                    java.math.BigDecimal.valueOf(amt).stripTrailingZeros().toPlainString()
+                }
+            } ?: ""
+        )
+    }
+    var quantityNote by remember { mutableStateOf(initial?.quantityNote ?: "") }
+    var paidBy by remember { mutableStateOf(initial?.paidBy?.ifBlank { "Aziz" } ?: "Aziz") }
+    var category by remember { mutableStateOf(initial?.category?.ifBlank { "FUEL" } ?: "FUEL") }
 
     val quickTitles = listOf("Diesel", "Driver Lunch", "Driver Breakfast", "Iron Wire", "Sariya Ring", "Machine Repair", "Lock and Key")
+    val payerOptions = remember(initial?.paidBy) {
+        listOfNotNull(initial?.paidBy?.takeIf { it.isNotBlank() }, "Aziz", "Nadeem", "Company").distinct()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Daily Expense", fontWeight = FontWeight.Bold) },
+        title = {
+            Text(
+                if (initial == null) "Add Daily Expense" else "Edit Daily Expense",
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -933,8 +1085,13 @@ private fun AddExpenseDialog(
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Aziz", "Nadeem", "Company").forEach { payer ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    payerOptions.forEach { payer ->
                         FilterChip(
                             selected = paidBy == payer,
                             onClick = { paidBy = payer },
@@ -951,13 +1108,14 @@ private fun AddExpenseDialog(
                     if (title.isNotBlank() && amt > 0) {
                         onConfirm(
                             SiteExpense(
-                                id = "",
+                                id = initial?.id ?: "",
                                 dateIso = expenseDateIso,
                                 title = title.trim(),
                                 amount = amt,
                                 paidBy = paidBy,
                                 quantityNote = quantityNote.trim(),
-                                category = category
+                                category = category,
+                                createdAtMillis = initial?.createdAtMillis ?: System.currentTimeMillis()
                             )
                         )
                     }
@@ -1008,24 +1166,30 @@ private fun AddExpenseDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AddMaterialDialog(
+private fun MaterialEditorDialog(
+    initial: SiteMaterialRecord?,
     defaultDateIso: String,
     defaultSNo: Int,
     onDismiss: () -> Unit,
     onConfirm: (SiteMaterialRecord) -> Unit
 ) {
-    var materialDateIso by remember { mutableStateOf(defaultDateIso) }
+    var materialDateIso by remember { mutableStateOf(initial?.dateIso?.ifBlank { defaultDateIso } ?: defaultDateIso) }
     var showDatePickerDialog by remember { mutableStateOf(false) }
-    var itemName by remember { mutableStateOf("") }
-    var qtyOut by remember { mutableStateOf("") }
-    var qtyInStore by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
+    var itemName by remember { mutableStateOf(initial?.itemName ?: "") }
+    var qtyOut by remember { mutableStateOf(initial?.qtyOut ?: "") }
+    var qtyInStore by remember { mutableStateOf(initial?.qtyInStore ?: "") }
+    var notes by remember { mutableStateOf(initial?.remarks ?: "") }
 
     val quickItems = listOf("J Bolt", "Heavy Hex Nut", "Cement", "Pole", "Sariya", "Rafter 3350", "Bracing 1108")
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Material Record", fontWeight = FontWeight.Bold) },
+        title = {
+            Text(
+                if (initial == null) "Add Material Record" else "Edit Material Record",
+                fontWeight = FontWeight.Bold
+            )
+        },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1147,13 +1311,14 @@ private fun AddMaterialDialog(
                     if (itemName.isNotBlank() && qtyOut.isNotBlank()) {
                         onConfirm(
                             SiteMaterialRecord(
-                                id = "",
+                                id = initial?.id ?: "",
                                 dateIso = materialDateIso,
-                                sNo = defaultSNo,
+                                sNo = initial?.sNo ?: defaultSNo,
                                 itemName = itemName.trim(),
                                 qtyOut = qtyOut.trim(),
                                 qtyInStore = qtyInStore.trim(),
-                                remarks = notes.trim()
+                                remarks = notes.trim(),
+                                createdAtMillis = initial?.createdAtMillis ?: System.currentTimeMillis()
                             )
                         )
                     }

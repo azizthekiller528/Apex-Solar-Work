@@ -720,8 +720,10 @@ fun DocFolioApp(
                             selectedDateIso = selectedExpenseDateIso,
                             onSelectDate = viewModel::selectExpenseDate,
                             onAddExpense = viewModel::addExpense,
+                            onUpdateExpense = viewModel::updateExpense,
                             onDeleteExpense = { id, dateIso -> viewModel.deleteExpense(id, dateIso) },
                             onAddMaterial = viewModel::addMaterial,
+                            onUpdateMaterial = viewModel::updateMaterial,
                             onDeleteMaterial = { id, dateIso -> viewModel.deleteMaterial(id, dateIso) },
                             onShareReport = viewModel::shareWhatsAppReport
                         )

@@ -1,8 +1,8 @@
 {
-  "versionCode": 20,
-  "versionName": "2.9",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.9.apk",
-  "sha256": "cf40bc2b05102f89cc1fd0f351549b41d3bb6ce0aae757387d575b7a8404fc50",
-  "sizeBytes": 46439875,
-  "releaseNotes": "• Updated store labels: Main Material Store (Shikarpur) and Company Store (Chigrawati, Siyana) with automatic upgrade sync\n• Fixed button text clipping on site cards (clean 'Google Maps' + 'Go' + Share buttons without truncation)\n• Includes all 5 pre-saved stores & solar sites (Shikarpur, Chigrawati Siyana, Pilkhana 1, Umrari 2, Harjipura 3)\n• Non-blocking offline-safe site sync with Mutex serialization"
+  "versionCode": 21,
+  "versionName": "2.10",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.10.apk",
+  "sha256": "35a8eccf7b585fdac654c088a3b4eb28faa5a4cb14105d846fc6e23c5fdffd5a",
+  "sizeBytes": 46456255,
+  "releaseNotes": "• Expenses: Full multi-line item names so long descriptions never cut off with ...\n• Added Edit button on both Expenses and Material Stock rows (updates live across phones even when changing dates)\n• Added Delete confirmation popup before removing any expense or material record"
 }

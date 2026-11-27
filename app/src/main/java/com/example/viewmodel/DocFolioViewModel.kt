@@ -1135,13 +1135,34 @@ class DocFolioViewModel(
     }
 
     fun addExpense(expense: SiteExpense) {
+        saveExpense(expense = expense, successMessage = "Expense added")
+    }
+
+    fun updateExpense(previousDateIso: String, expense: SiteExpense) {
+        saveExpense(
+            expense = expense,
+            successMessage = "Expense updated",
+            previousDateIso = previousDateIso
+        )
+    }
+
+    private fun saveExpense(
+        expense: SiteExpense,
+        successMessage: String,
+        previousDateIso: String = ""
+    ) {
         viewModelScope.launch {
             try {
                 siteExpenseRepository?.addExpense(expense)
-                _events.emit(OneShotEvent.ShowMessage("Expense added"))
+                _events.emit(OneShotEvent.ShowMessage(successMessage))
+                if (previousDateIso.isNotBlank() && previousDateIso != expense.dateIso) {
+                    syncDateToCloud(previousDateIso)
+                }
                 syncDateToCloud(expense.dateIso)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _events.emit(OneShotEvent.ShowMessage("Failed to add expense: ${e.message}"))
+                _events.emit(OneShotEvent.ShowMessage("Failed to save expense: ${e.message}"))
             }
         }
     }
@@ -1154,6 +1175,8 @@ class DocFolioViewModel(
                 if (dateIso.isNotBlank()) {
                     syncDateToCloud(dateIso)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to delete expense: ${e.message}"))
             }
@@ -1161,13 +1184,34 @@ class DocFolioViewModel(
     }
 
     fun addMaterial(record: SiteMaterialRecord) {
+        saveMaterial(record = record, successMessage = "Material record added")
+    }
+
+    fun updateMaterial(previousDateIso: String, record: SiteMaterialRecord) {
+        saveMaterial(
+            record = record,
+            successMessage = "Material record updated",
+            previousDateIso = previousDateIso
+        )
+    }
+
+    private fun saveMaterial(
+        record: SiteMaterialRecord,
+        successMessage: String,
+        previousDateIso: String = ""
+    ) {
         viewModelScope.launch {
             try {
                 siteExpenseRepository?.addMaterial(record)
-                _events.emit(OneShotEvent.ShowMessage("Material record added"))
+                _events.emit(OneShotEvent.ShowMessage(successMessage))
+                if (previousDateIso.isNotBlank() && previousDateIso != record.dateIso) {
+                    syncDateToCloud(previousDateIso)
+                }
                 syncDateToCloud(record.dateIso)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _events.emit(OneShotEvent.ShowMessage("Failed to add material: ${e.message}"))
+                _events.emit(OneShotEvent.ShowMessage("Failed to save material: ${e.message}"))
             }
         }
     }
@@ -1180,6 +1224,8 @@ class DocFolioViewModel(
                 if (dateIso.isNotBlank()) {
                     syncDateToCloud(dateIso)
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _events.emit(OneShotEvent.ShowMessage("Failed to delete material: ${e.message}"))
             }

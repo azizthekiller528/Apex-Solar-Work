@@ -93,3 +93,38 @@ fun DocFolioTheme(
         content = content
     )
 }
+
+enum class AppThemeMode(val storageKey: String, val label: String) {
+    SYSTEM("system", "Auto (Phone)"),
+    LIGHT("light", "Day Mode"),
+    DARK("dark", "Night Mode");
+
+    companion object {
+        fun fromStorageKey(key: String?): AppThemeMode =
+            entries.firstOrNull { it.storageKey == key } ?: SYSTEM
+
+        fun nextManualToggle(currentlyDark: Boolean): AppThemeMode =
+            if (currentlyDark) LIGHT else DARK
+
+        fun nextCycle(current: AppThemeMode): AppThemeMode = when (current) {
+            SYSTEM -> DARK
+            DARK -> LIGHT
+            LIGHT -> SYSTEM
+        }
+    }
+}
+
+object ThemePreferenceStore {
+    private const val PREFS_NAME = "docfolio_theme_prefs"
+    private const val KEY_THEME_MODE = "theme_mode"
+
+    fun loadThemeMode(context: android.content.Context): AppThemeMode {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        return AppThemeMode.fromStorageKey(prefs.getString(KEY_THEME_MODE, null))
+    }
+
+    fun saveThemeMode(context: android.content.Context, mode: AppThemeMode) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_THEME_MODE, mode.storageKey).apply()
+    }
+}

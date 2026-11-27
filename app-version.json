@@ -1,8 +1,8 @@
 {
-  "versionCode": 22,
-  "versionName": "2.11",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.11.apk",
-  "sha256": "da6414427f3d48876720e9c205ac941fe72a1ddd3de6619284280ce086e09ad9",
-  "sizeBytes": 46456255,
-  "releaseNotes": "• Obsidian Dark & Ivory Light theme overhaul with crisp cobalt accents (eliminates muddy brown nav pills & buttons)\n• Unified 16dp card corners, 1dp hairline chrome dividers, and zero tonal color wash\n• Indian comma tabular ₹ amounts and dark-safe OUT/STORE stock badges on Expenses tab"
+  "versionCode": 23,
+  "versionName": "2.12",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.12.apk",
+  "sha256": "482ac80d99b1a8348c32b856742be1b6143d5a22aff5cf5f6382070ca61021d0",
+  "sizeBytes": 46472639,
+  "releaseNotes": "• Added 1-tap Day / Night mode toggle button in top bar + Auto/Day/Night option in profile menu\n• Remembers your Day or Night preference across restarts & updates status bar icons dynamically\n• Fixed Store/Site badge contrast in Night mode"
 }

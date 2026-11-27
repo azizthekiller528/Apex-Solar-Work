@@ -718,4 +718,19 @@ class DocFolioPureJvmTest {
         repo.syncFromCloudDocuments(listOf(emptyDoc))
         assertEquals(0, fakeDao.getCount())
     }
+
+    @Test
+    fun appThemeMode_parsesAndTogglesBetweenDayAndNight() {
+        assertEquals(com.example.ui.theme.AppThemeMode.SYSTEM, com.example.ui.theme.AppThemeMode.fromStorageKey(null))
+        assertEquals(com.example.ui.theme.AppThemeMode.SYSTEM, com.example.ui.theme.AppThemeMode.fromStorageKey("unknown"))
+        assertEquals(com.example.ui.theme.AppThemeMode.LIGHT, com.example.ui.theme.AppThemeMode.fromStorageKey("light"))
+        assertEquals(com.example.ui.theme.AppThemeMode.DARK, com.example.ui.theme.AppThemeMode.fromStorageKey("dark"))
+
+        assertEquals(com.example.ui.theme.AppThemeMode.DARK, com.example.ui.theme.AppThemeMode.nextManualToggle(currentlyDark = false))
+        assertEquals(com.example.ui.theme.AppThemeMode.LIGHT, com.example.ui.theme.AppThemeMode.nextManualToggle(currentlyDark = true))
+
+        assertEquals(com.example.ui.theme.AppThemeMode.DARK, com.example.ui.theme.AppThemeMode.nextCycle(com.example.ui.theme.AppThemeMode.SYSTEM))
+        assertEquals(com.example.ui.theme.AppThemeMode.LIGHT, com.example.ui.theme.AppThemeMode.nextCycle(com.example.ui.theme.AppThemeMode.DARK))
+        assertEquals(com.example.ui.theme.AppThemeMode.SYSTEM, com.example.ui.theme.AppThemeMode.nextCycle(com.example.ui.theme.AppThemeMode.LIGHT))
+    }
 }

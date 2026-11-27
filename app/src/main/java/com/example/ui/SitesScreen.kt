@@ -399,14 +399,22 @@ private fun SiteLocationCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    color = if (isStore) Color(0xFF1B5E20).copy(alpha = 0.14f) else MaterialTheme.colorScheme.secondaryContainer,
+                    color = if (isStore) {
+                        MaterialTheme.colorScheme.tertiaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    },
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
                         text = SiteLocation.typeDisplayLabel(site.siteType).uppercase(Locale.US),
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (isStore) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSecondaryContainer,
+                        color = if (isStore) {
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onPrimaryContainer
+                        },
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }

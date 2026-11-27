@@ -22,11 +22,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.example.BuildConfig
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
@@ -35,6 +38,7 @@ import androidx.compose.material.icons.filled.SystemUpdate
 import com.example.data.MediaRelayService
 import com.example.data.SiteExpenseRepository
 import com.example.data.SiteLocationRepository
+import com.example.ui.theme.AppThemeMode
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.LocationOn
@@ -126,7 +130,10 @@ private enum class MainTab(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DocFolioApp(
-    currentUser: FirebaseUser? = null
+    currentUser: FirebaseUser? = null,
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    isDarkTheme: Boolean = false,
+    onThemeModeChange: (AppThemeMode) -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -423,6 +430,35 @@ fun DocFolioApp(
                             }
                         },
                     actions = {
+                        IconButton(
+                            onClick = { onThemeModeChange(AppThemeMode.nextManualToggle(isDarkTheme)) },
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("day_night_toggle_button")
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = androidx.compose.foundation.shape.CircleShape,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outlineVariant
+                                ),
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isDarkTheme) Icons.Filled.LightMode else Icons.Filled.DarkMode,
+                                        contentDescription = if (isDarkTheme) "Switch to Day Mode" else "Switch to Night Mode",
+                                        tint = if (isDarkTheme) {
+                                            com.example.ui.theme.DarkSecondary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface
+                                        },
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
                         Box {
                             IconButton(
                                 onClick = { showAccountMenu = true },
@@ -530,6 +566,22 @@ fun DocFolioApp(
                                         }
                                     },
                                     enabled = !isCloudSyncing
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Theme: ${themeMode.label}") },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = when (themeMode) {
+                                                AppThemeMode.SYSTEM -> Icons.Filled.BrightnessAuto
+                                                AppThemeMode.LIGHT -> Icons.Filled.LightMode
+                                                AppThemeMode.DARK -> Icons.Filled.DarkMode
+                                            },
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        onThemeModeChange(AppThemeMode.nextCycle(themeMode))
+                                    }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Check for Updates (v${BuildConfig.VERSION_NAME})") },

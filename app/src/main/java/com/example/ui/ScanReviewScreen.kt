@@ -25,9 +25,11 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -39,20 +41,15 @@ import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -70,14 +67,21 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.DocumentCategory
 import com.example.ui.components.DocDatePickerDialog
+import com.example.ui.theme.LiquidGlassBackdrop
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassChip
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.MonoTranscriptStyle
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.liquidGlassSurface
 import com.example.util.DateSearchParser
 import com.example.viewmodel.ScanDraft
 import com.example.viewmodel.ScanFlowState
@@ -97,66 +101,82 @@ fun ScanReviewScreen(
         onCancel()
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = when (scanState) {
-                            is ScanFlowState.Review -> "Verify Details & Save PDF"
-                            is ScanFlowState.Error -> "Scan Interrupted"
-                            else -> "Scan Document"
-                        },
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onCancel,
-                        enabled = !isSaving,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("scan_back_button")
+    LiquidGlassBackdrop {
+        Scaffold(
+            topBar = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    LiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(26.dp),
+                        tone = LiquidGlassTone.DOCK,
+                        elevation = 10.dp
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Cancel scan"
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onCancel,
+                                enabled = !isSaving,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("scan_back_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Cancel scan"
+                                )
+                            }
+                            Text(
+                                text = when (scanState) {
+                                    is ScanFlowState.Review -> "Verify Details & Save PDF"
+                                    is ScanFlowState.Error -> "Scan Interrupted"
+                                    else -> "Scan Document"
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                        }
+                    }
+                }
+            },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                when (scanState) {
+                    is ScanFlowState.Error -> {
+                        ScanErrorView(
+                            state = scanState,
+                            onCancel = onCancel
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            when (scanState) {
-                is ScanFlowState.Error -> {
-                    ScanErrorView(
-                        state = scanState,
-                        onCancel = onCancel
-                    )
-                }
 
-                is ScanFlowState.Review -> {
-                    ReviewDraftView(
-                        draft = scanState.draft,
-                        isSaving = scanState.isSaving,
-                        isExtractingWithAi = isExtractingWithAi,
-                        onAutoFillWithAi = onAutoFillWithAi,
-                        onUpdateDraft = onUpdateDraft,
-                        onSaveDocument = onSaveDocument
-                    )
-                }
+                    is ScanFlowState.Review -> {
+                        ReviewDraftView(
+                            draft = scanState.draft,
+                            isSaving = scanState.isSaving,
+                            isExtractingWithAi = isExtractingWithAi,
+                            onAutoFillWithAi = onAutoFillWithAi,
+                            onUpdateDraft = onUpdateDraft,
+                            onSaveDocument = onSaveDocument
+                        )
+                    }
 
-                ScanFlowState.Idle -> Unit
+                    ScanFlowState.Idle -> Unit
+                }
             }
         }
     }
@@ -184,15 +204,15 @@ private fun ScanErrorView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(22.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
             )
         }
 
-        Surface(
+        LiquidGlassCard(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.errorContainer,
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(22.dp),
+            tone = LiquidGlassTone.CARD
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -205,25 +225,26 @@ private fun ScanErrorView(
                     Icon(
                         imageVector = Icons.Default.ErrorOutline,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onErrorContainer
+                        tint = MaterialTheme.colorScheme.error
                     )
                     Text(
                         text = "Could not open this scan",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Text(
                     text = state.message,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
 
-        OutlinedButton(
+        LiquidGlassPillButton(
             onClick = onCancel,
-            shape = RoundedCornerShape(14.dp),
+            tone = LiquidGlassTone.DOCK,
+            elevation = 6.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
@@ -231,7 +252,7 @@ private fun ScanErrorView(
         ) {
             Icon(imageVector = Icons.Default.EditNote, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Go Back to Vault")
+            Text("Go Back to Vault", fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -290,14 +311,13 @@ private fun ReviewDraftView(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Compact Scan Preview + OCR Status Banner
-            Surface(
+            LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.surface,
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                shape = RoundedCornerShape(24.dp),
+                tone = LiquidGlassTone.CARD
             ) {
                 Row(
-                    modifier = Modifier.padding(12.dp),
+                    modifier = Modifier.padding(14.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -307,7 +327,7 @@ private fun ReviewDraftView(
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(width = 72.dp, height = 92.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(14.dp))
                     )
                     Column(
                         modifier = Modifier.weight(1f),
@@ -339,10 +359,10 @@ private fun ReviewDraftView(
             }
 
             // Quick Save info banner
-            Surface(
+            LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(18.dp),
+                tone = LiquidGlassTone.SUBTLE
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -358,19 +378,20 @@ private fun ReviewDraftView(
                     Text(
                         text = "Photo ready. Confirm date below and tap Save at the bottom.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
 
             // AI Auto-Fill Action Button (Optional)
-            OutlinedButton(
+            LiquidGlassPillButton(
                 onClick = onAutoFillWithAi,
                 enabled = !isExtractingWithAi && !isSaving,
+                tone = LiquidGlassTone.DOCK,
+                elevation = 4.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("btn_ai_auto_fill"),
-                shape = RoundedCornerShape(12.dp)
+                    .testTag("btn_ai_auto_fill")
             ) {
                 if (isExtractingWithAi) {
                     CircularProgressIndicator(
@@ -379,16 +400,18 @@ private fun ReviewDraftView(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Scanning with Gemini AI (optional)...")
+                    Text("Scanning with Gemini AI (optional)...", fontWeight = FontWeight.Medium)
                 } else {
                     Icon(
                         imageVector = Icons.Default.AutoAwesome,
                         contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (draft.ocrFullText.isNotBlank()) "Re-Scan with AI (Optional)" else "Auto-Fill with AI (Optional)"
+                        if (draft.ocrFullText.isNotBlank()) "Re-Scan with AI (Optional)" else "Auto-Fill with AI (Optional)",
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -399,14 +422,14 @@ private fun ReviewDraftView(
                 onValueChange = { v -> onUpdateDraft { it.copy(title = v.take(200)) } },
                 label = { Text("Document Title") },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(16.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("draft_title_input")
             )
 
             // Category Selection Chips
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = "DOCUMENT TYPE",
                     style = MaterialTheme.typography.labelSmall,
@@ -419,10 +442,10 @@ private fun ReviewDraftView(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     DocumentCategory.entries.forEach { cat ->
-                        FilterChip(
+                        LiquidGlassChip(
                             selected = draft.category == cat,
                             onClick = { onUpdateDraft { it.copy(category = cat) } },
-                            label = { Text(cat.shortLabel) }
+                            label = cat.shortLabel
                         )
                     }
                 }
@@ -587,11 +610,11 @@ private fun ReviewDraftView(
         }
 
         // Bottom Save & Generate Searchable PDF Bar
-        Surface(
+        LiquidGlassCard(
             modifier = Modifier.fillMaxWidth(),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 4.dp,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
+            tone = LiquidGlassTone.DOCK,
+            elevation = 10.dp
         ) {
             Box(
                 modifier = Modifier
@@ -600,10 +623,11 @@ private fun ReviewDraftView(
                     .imePadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Button(
+                LiquidGlassPillButton(
                     onClick = onSaveDocument,
                     enabled = !isSaving && !docDateError && !filedDateError && draft.title.isNotBlank(),
-                    shape = RoundedCornerShape(14.dp),
+                    tone = LiquidGlassTone.ACCENT,
+                    elevation = 8.dp,
                     contentPadding = PaddingValues(vertical = 14.dp),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -612,11 +636,11 @@ private fun ReviewDraftView(
                     if (isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = Color.White,
                             strokeWidth = 2.dp
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text("Building Searchable PDF & Saving…")
+                        Text("Building Searchable PDF & Saving…", fontWeight = FontWeight.SemiBold)
                     } else {
                         Icon(
                             imageVector = Icons.Default.PictureAsPdf,
@@ -626,7 +650,8 @@ private fun ReviewDraftView(
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
                             text = stringResource(R.string.save_and_create_pdf),
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }

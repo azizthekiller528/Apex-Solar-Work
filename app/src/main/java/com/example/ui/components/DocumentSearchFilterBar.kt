@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -26,7 +28,7 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.AssistChip
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -42,17 +44,24 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.DateMatchMode
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassChip
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.liquidGlassSurface
 import com.example.util.DateSearchParser
 import com.example.viewmodel.FirestoreSearchState
 import com.example.viewmodel.VaultFilterState
@@ -126,81 +135,91 @@ fun DocumentSearchFilterBar(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 1. Keyword & Smart Date Search Input
+        // 1. Keyword & Smart Date Search Input (iOS Spotlight Glass Capsule)
         Column(modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = filterState.query,
-                onValueChange = onQueryChange,
-                placeholder = {
-                    Text(
-                        text = stringResource(R.string.search_placeholder),
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .liquidGlassSurface(
+                        shape = CircleShape,
+                        tone = LiquidGlassTone.DOCK,
+                        elevation = 6.dp
                     )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search documents",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                },
-                trailingIcon = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (filterState.query.isNotBlank() ||
-                            filterState.explicitDateIso != null ||
-                            filterState.hasActiveDateRange
-                        ) {
+            ) {
+                OutlinedTextField(
+                    value = filterState.query,
+                    onValueChange = onQueryChange,
+                    placeholder = {
+                        Text(
+                            text = stringResource(R.string.search_placeholder),
+                            style = MaterialTheme.typography.bodyMedium,
+                            maxLines = 1
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search documents",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingIcon = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (filterState.query.isNotBlank() ||
+                                filterState.explicitDateIso != null ||
+                                filterState.hasActiveDateRange
+                            ) {
+                                IconButton(
+                                    onClick = onClearSearchAndDate,
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .testTag("clear_search_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Clear search"
+                                    )
+                                }
+                            }
                             IconButton(
-                                onClick = onClearSearchAndDate,
+                                onClick = onOpenExactDatePicker,
                                 modifier = Modifier
                                     .minimumInteractiveComponentSize()
-                                    .testTag("clear_search_button")
+                                    .testTag("vault_date_picker_button")
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Clear search"
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = "Pick exact date to filter",
+                                    tint = if (filterState.activeDateIso != null || filterState.hasActiveDateRange) {
+                                        SafetyAmber
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                         }
-                        IconButton(
-                            onClick = onOpenExactDatePicker,
-                            modifier = Modifier
-                                .minimumInteractiveComponentSize()
-                                .testTag("vault_date_picker_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CalendarMonth,
-                                contentDescription = "Pick exact date to filter",
-                                tint = if (filterState.activeDateIso != null || filterState.hasActiveDateRange) {
-                                    SafetyAmber
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
-                        }
-                    }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("vault_search_input")
-            )
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("vault_search_input")
+                )
+            }
 
             AnimatedVisibility(visible = firestoreSearchState is FirestoreSearchState.Loading) {
                 LinearProgressIndicator(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                        .padding(horizontal = 18.dp, vertical = 3.dp)
                         .height(2.5.dp)
                         .testTag("firestore_search_loading")
                 )
@@ -227,37 +246,37 @@ fun DocumentSearchFilterBar(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterChip(
+            LiquidGlassChip(
                 selected = filterState.hasActiveDateRange && effectiveStart != null,
                 onClick = onOpenRangeStartPicker,
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 },
-                label = { Text(startDisplay, style = MaterialTheme.typography.labelMedium) },
+                label = startDisplay,
                 modifier = Modifier.testTag("vault_range_start_chip")
             )
-            FilterChip(
+            LiquidGlassChip(
                 selected = filterState.hasActiveDateRange && effectiveEnd != null,
                 onClick = onOpenRangeEndPicker,
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.CalendarMonth,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 },
-                label = { Text(endDisplay, style = MaterialTheme.typography.labelMedium) },
+                label = endDisplay,
                 modifier = Modifier.testTag("vault_range_end_chip")
             )
 
             presets.forEach { preset ->
                 val isSelected = filterState.rangeStartDateIso == preset.startIso &&
                     filterState.rangeEndDateIso == preset.endIso
-                FilterChip(
+                LiquidGlassChip(
                     selected = isSelected,
                     onClick = {
                         if (isSelected) {
@@ -266,32 +285,23 @@ fun DocumentSearchFilterBar(
                             onSelectDateRange(preset.startIso, preset.endIso)
                         }
                     },
-                    label = {
-                        Text(
-                            text = stringResource(preset.labelRes),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    },
+                    label = stringResource(preset.labelRes),
                     modifier = Modifier.testTag("date_preset_${preset.id}")
                 )
             }
 
             if (filterState.hasExplicitRange) {
-                AssistChip(
+                LiquidGlassChip(
+                    selected = false,
                     onClick = onClearDateRange,
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = stringResource(R.string.search_clear_range),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     },
-                    label = {
-                        Text(
-                            text = stringResource(R.string.search_clear_range),
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                    },
+                    label = stringResource(R.string.search_clear_range),
                     modifier = Modifier.testTag("vault_clear_range_chip")
                 )
             }
@@ -304,13 +314,14 @@ fun DocumentSearchFilterBar(
                 modifier = Modifier
                     .fillMaxWidth()
                     .testTag("firestore_search_error_banner"),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                shape = RoundedCornerShape(12.dp)
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.88f),
+                shape = RoundedCornerShape(18.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.35f))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -384,17 +395,17 @@ fun DocumentSearchFilterBar(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            FilterChip(
+            LiquidGlassChip(
                 selected = filterState.selectedCategory == null,
                 onClick = { onSelectCategory(null) },
-                label = { Text("All ($totalBaseCount)") },
+                label = "All ($totalBaseCount)",
                 modifier = Modifier.testTag("cat_chip_all")
             )
             DocumentCategory.entries.forEach { category ->
-                FilterChip(
+                LiquidGlassChip(
                     selected = filterState.selectedCategory == category,
                     onClick = { onSelectCategory(category) },
-                    label = { Text(category.shortLabel) },
+                    label = category.shortLabel,
                     modifier = Modifier.testTag("cat_chip_${category.name}")
                 )
             }
@@ -419,15 +430,14 @@ private fun ActiveSingleDateBanner(
         if (filterState.useAlternateDateFormat) parsed?.primaryIso else parsed?.alternateIso
     } else null
 
-    Surface(
+    LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(22.dp),
+        tone = LiquidGlassTone.CARD
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -453,7 +463,7 @@ private fun ActiveSingleDateBanner(
                     Text(
                         text = "${DateSearchParser.formatSlashDate(activeDateIso)} • ${DateSearchParser.formatFriendlyDate(activeDateIso)}",
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
@@ -462,19 +472,21 @@ private fun ActiveSingleDateBanner(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (displayedDocs.isNotEmpty()) {
-                        OutlinedButton(
+                        LiquidGlassPillButton(
                             onClick = { onExportDayPdf(activeDateIso, displayedDocs) },
                             enabled = !isExportingPdf,
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            tone = LiquidGlassTone.ACCENT,
+                            elevation = 4.dp,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
                             modifier = Modifier.testTag("vault_export_day_pdf")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PictureAsPdf,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Day PDF", style = MaterialTheme.typography.labelMedium)
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Day PDF", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     if (filterState.explicitDateIso != null) {
@@ -499,28 +511,24 @@ private fun ActiveSingleDateBanner(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 DateMatchMode.entries.forEach { mode ->
-                    FilterChip(
+                    LiquidGlassChip(
                         selected = filterState.dateMatchMode == mode,
                         onClick = { onSelectDateMatchMode(mode) },
-                        label = { Text(mode.label, style = MaterialTheme.typography.labelMedium) }
+                        label = mode.label
                     )
                 }
                 if (alternateIso != null) {
-                    AssistChip(
+                    LiquidGlassChip(
+                        selected = false,
                         onClick = onToggleAlternateDate,
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.SwapHoriz,
                                 contentDescription = "Switch DD/MM and MM/DD date format",
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                         },
-                        label = {
-                            Text(
-                                text = "Try ${DateSearchParser.formatFriendlyDate(alternateIso)}",
-                                style = MaterialTheme.typography.labelMedium
-                            )
-                        },
+                        label = "Try ${DateSearchParser.formatFriendlyDate(alternateIso)}",
                         modifier = Modifier.testTag("toggle_date_format_chip")
                     )
                 }
@@ -552,15 +560,14 @@ private fun ActiveDateRangeBanner(
             append(rangeEnd?.let { DateSearchParser.formatSlashDate(it) } ?: "Any")
         }
     }
-    Surface(
+    LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(22.dp),
+        tone = LiquidGlassTone.CARD
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -586,7 +593,7 @@ private fun ActiveDateRangeBanner(
                     Text(
                         text = rangeLabel,
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Row(
@@ -594,19 +601,21 @@ private fun ActiveDateRangeBanner(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (isSingleDayRange && singleDate.isNotBlank() && displayedDocs.isNotEmpty()) {
-                        OutlinedButton(
+                        LiquidGlassPillButton(
                             onClick = { onExportDayPdf(singleDate, displayedDocs) },
                             enabled = !isExportingPdf,
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            tone = LiquidGlassTone.ACCENT,
+                            elevation = 4.dp,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
                             modifier = Modifier.testTag("vault_range_export_day_pdf")
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PictureAsPdf,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Day PDF", style = MaterialTheme.typography.labelMedium)
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Day PDF", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     IconButton(
@@ -631,10 +640,10 @@ private fun ActiveDateRangeBanner(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 DateMatchMode.entries.forEach { mode ->
-                    FilterChip(
+                    LiquidGlassChip(
                         selected = filterState.dateMatchMode == mode,
                         onClick = { onSelectDateMatchMode(mode) },
-                        label = { Text(mode.label, style = MaterialTheme.typography.labelMedium) }
+                        label = mode.label
                     )
                 }
             }

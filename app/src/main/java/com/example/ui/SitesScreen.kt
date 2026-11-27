@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -38,17 +39,12 @@ import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -72,6 +68,10 @@ import androidx.compose.ui.unit.dp
 import com.example.data.SiteLocationRepository
 import com.example.data.model.SiteLocation
 import com.example.data.model.SiteLocationParser
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.liquidGlassSurface
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -180,17 +180,14 @@ fun SitesScreen(
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 92.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    shape = RoundedCornerShape(24.dp),
+                    tone = LiquidGlassTone.CARD
                 ) {
                     Row(
                         modifier = Modifier
@@ -199,18 +196,20 @@ fun SitesScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.size(44.dp)
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .liquidGlassSurface(
+                                    shape = RoundedCornerShape(14.dp),
+                                    tone = LiquidGlassTone.ACCENT
+                                ),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Warehouse,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Warehouse,
+                                contentDescription = null,
+                                tint = Color.White
+                            )
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -230,10 +229,10 @@ fun SitesScreen(
 
             if (sites.isEmpty()) {
                 item {
-                    Card(
+                    LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD
                     ) {
                         Column(
                             modifier = Modifier
@@ -288,34 +287,30 @@ fun SitesScreen(
             }
         }
 
-        FloatingActionButton(
+        LiquidGlassPillButton(
             onClick = {
                 editingSite = null
                 showEditorDialog = true
             },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            tone = LiquidGlassTone.ACCENT,
+            elevation = 12.dp,
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
                 .testTag("add_site_fab")
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (isSaving) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary
-                    )
-                } else {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                }
-                Text("Add Site", fontWeight = FontWeight.SemiBold)
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White
+                )
+            } else {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(19.dp))
             }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Add Site", fontWeight = FontWeight.SemiBold)
         }
     }
 
@@ -372,20 +367,12 @@ private fun SiteLocationCard(
     onDelete: () -> Unit
 ) {
     val isStore = site.siteType == SiteLocation.TYPE_STORE
-    Card(
+    LiquidGlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .testTag("site_card_${site.id}"),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(
-            width = 1.dp,
-            color = if (site.isPinned) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
-            } else {
-                MaterialTheme.colorScheme.outlineVariant
-            }
-        )
+        shape = RoundedCornerShape(24.dp),
+        tone = LiquidGlassTone.CARD
     ) {
         Column(
             modifier = Modifier
@@ -398,25 +385,44 @@ private fun SiteLocationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    color = if (isStore) {
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.primaryContainer
-                    },
-                    shape = RoundedCornerShape(8.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = SiteLocation.typeDisplayLabel(site.siteType).uppercase(Locale.US),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
+                    Surface(
                         color = if (isStore) {
-                            MaterialTheme.colorScheme.onTertiaryContainer
+                            MaterialTheme.colorScheme.tertiaryContainer
                         } else {
-                            MaterialTheme.colorScheme.onPrimaryContainer
+                            MaterialTheme.colorScheme.primaryContainer
                         },
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                        shape = CircleShape
+                    ) {
+                        Text(
+                            text = SiteLocation.typeDisplayLabel(site.siteType).uppercase(Locale.US),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isStore) {
+                                MaterialTheme.colorScheme.onTertiaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
+                        )
+                    }
+                    if (site.isPinned) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            shape = CircleShape
+                        ) {
+                            Text(
+                                text = "PINNED",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -462,17 +468,20 @@ private fun SiteLocationCard(
                 }
             }
 
-            // GPS Coordinates / Link readout pill
+            // GPS Coordinates / Link readout well
             if (site.hasCoordinates || site.googleMapsUrl.isNotBlank()) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surfaceContainer,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .liquidGlassSurface(
+                            shape = RoundedCornerShape(16.dp),
+                            tone = LiquidGlassTone.SUBTLE
+                        )
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 9.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -518,12 +527,14 @@ private fun SiteLocationCard(
             // 1-Tap Google Maps Redirect & Driver Actions
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(
+                LiquidGlassPillButton(
                     onClick = onOpenMaps,
-                    shape = RoundedCornerShape(10.dp),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                    tone = LiquidGlassTone.ACCENT,
+                    elevation = 4.dp,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     modifier = Modifier
                         .weight(1f)
                         .testTag("open_maps_btn_${site.id}")
@@ -531,46 +542,43 @@ private fun SiteLocationCard(
                     Icon(
                         imageVector = Icons.Default.Map,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(Modifier.width(5.dp))
                     Text(
                         text = "Google Maps",
                         maxLines = 1,
                         softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
 
-                FilledTonalButton(
+                LiquidGlassPillButton(
                     onClick = onDirections,
-                    shape = RoundedCornerShape(10.dp),
-                    colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        contentColor = MaterialTheme.colorScheme.onSurface
-                    ),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                    tone = LiquidGlassTone.SUBTLE,
+                    elevation = 0.dp,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Directions,
                         contentDescription = "Directions",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Go", maxLines = 1, softWrap = false)
+                    Text("Go", maxLines = 1, softWrap = false, fontWeight = FontWeight.Medium)
                 }
 
-                OutlinedButton(
+                LiquidGlassPillButton(
                     onClick = onShare,
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    contentPadding = PaddingValues(0.dp),
-                    modifier = Modifier.width(48.dp)
+                    tone = LiquidGlassTone.SUBTLE,
+                    elevation = 0.dp,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = "Share on WhatsApp",
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(17.dp)
                     )
                 }
             }

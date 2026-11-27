@@ -66,13 +66,14 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.LocalIsDarkTheme
 import com.example.ui.theme.MonoCodeStyle
 import com.example.ui.theme.SafetyAmber
-import com.example.ui.theme.SafetyAmberContainer
 import com.example.ui.theme.SlipRose
-import com.example.ui.theme.SlipRoseContainer
 import com.example.ui.theme.VerifiedTeal
-import com.example.ui.theme.VerifiedTealContainer
+import com.example.ui.theme.liquidGlassSurface
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
 import com.example.util.ThumbnailImageLoader
@@ -92,22 +93,26 @@ fun CategoryBadge(
     category: DocumentCategory,
     modifier: Modifier = Modifier
 ) {
-    val (bg, fg) = when (category) {
-        DocumentCategory.MATERIAL_SLIP -> SlipRoseContainer to SlipRose
-        DocumentCategory.INSPECTION_PROTOCOL -> VerifiedTealContainer to VerifiedTeal
-        DocumentCategory.DELIVERY_CHALLAN -> SafetyAmberContainer to SafetyAmber
-        DocumentCategory.INVOICE_RECEIPT -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.onPrimaryContainer
-        DocumentCategory.SITE_REPORT -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-        DocumentCategory.OTHER -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    val isDark = LocalIsDarkTheme.current
+    val fg = when (category) {
+        DocumentCategory.MATERIAL_SLIP -> if (isDark) Color(0xFFFB7185) else SlipRose
+        DocumentCategory.INSPECTION_PROTOCOL -> if (isDark) Color(0xFF2DD4BF) else VerifiedTeal
+        DocumentCategory.DELIVERY_CHALLAN -> if (isDark) Color(0xFFFBBF24) else SafetyAmber
+        DocumentCategory.INVOICE_RECEIPT -> MaterialTheme.colorScheme.primary
+        DocumentCategory.SITE_REPORT -> MaterialTheme.colorScheme.primary
+        DocumentCategory.OTHER -> MaterialTheme.colorScheme.onSurfaceVariant
     }
+    val bg = fg.copy(alpha = if (isDark) 0.18f else 0.12f)
+    val rim = fg.copy(alpha = if (isDark) 0.34f else 0.24f)
 
     Surface(
         modifier = modifier,
         color = bg,
-        shape = RoundedCornerShape(8.dp)
+        shape = CircleShape,
+        border = BorderStroke(0.8.dp, rim)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -305,16 +310,13 @@ fun DocumentLedgerCard(
     onSharePdf: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Surface(
+    LiquidGlassCard(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("document_card_${doc.id}")
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        tonalElevation = 0.dp
+            .testTag("document_card_${doc.id}"),
+        shape = RoundedCornerShape(24.dp),
+        tone = LiquidGlassTone.CARD,
+        onClick = onClick
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -385,7 +387,7 @@ fun DocumentLedgerCard(
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
             Spacer(modifier = Modifier.height(8.dp))
 
             Row(
@@ -408,18 +410,29 @@ fun DocumentLedgerCard(
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     IconButton(
                         onClick = onToggleStar,
                         modifier = Modifier
                             .minimumInteractiveComponentSize()
                             .testTag("star_doc_${doc.id}")
                     ) {
-                        Icon(
-                            imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
-                            contentDescription = if (doc.starred) "Remove star" else "Star document",
-                            tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                contentDescription = if (doc.starred) "Remove star" else "Star document",
+                                tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                     IconButton(
                         onClick = onSharePdf,
@@ -427,11 +440,19 @@ fun DocumentLedgerCard(
                             .minimumInteractiveComponentSize()
                             .testTag("share_pdf_${doc.id}")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share searchable PDF",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share searchable PDF",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -446,28 +467,22 @@ fun DateStampChip(
     highlighted: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val bg = if (highlighted) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
     val fg = if (highlighted) {
-        MaterialTheme.colorScheme.onPrimaryContainer
+        MaterialTheme.colorScheme.primary
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Surface(
-        modifier = modifier,
-        color = bg,
-        shape = RoundedCornerShape(6.dp)
+    Box(
+        modifier = modifier
+            .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
     ) {
         Text(
             text = "$prefix ${DateSearchParser.formatSlashDate(isoDate)}",
             style = MonoCodeStyle,
             color = fg,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+            maxLines = 1
         )
     }
 }
@@ -531,7 +546,8 @@ fun ScanSourceBottomSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
@@ -569,8 +585,8 @@ fun ScanSourceBottomSheet(
 
             ScanSourceRow(
                 icon = Icons.Default.PhotoLibrary,
-                iconBg = MaterialTheme.colorScheme.secondaryContainer,
-                iconTint = MaterialTheme.colorScheme.secondary,
+                iconBg = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                iconTint = MaterialTheme.colorScheme.primary,
                 title = "Choose from Photo Gallery",
                 subtitle = "Import existing document photos with zero storage permissions",
                 testTag = "scan_source_gallery",
@@ -641,15 +657,13 @@ private fun ScanSourceRow(
     testTag: String,
     onClick: () -> Unit
 ) {
-    Surface(
+    LiquidGlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .testTag(testTag)
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            .testTag(testTag),
+        shape = RoundedCornerShape(20.dp),
+        tone = LiquidGlassTone.CARD,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -696,14 +710,11 @@ private fun SampleFormChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    Surface(
-        modifier = modifier
-            .testTag(testTag)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, VerifiedTeal.copy(alpha = 0.35f))
+    LiquidGlassCard(
+        modifier = modifier.testTag(testTag),
+        shape = RoundedCornerShape(18.dp),
+        tone = LiquidGlassTone.SUBTLE,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier.padding(12.dp),

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -62,8 +63,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -103,12 +102,17 @@ import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.ui.components.CategoryBadge
 import com.example.ui.components.DocDatePickerDialog
+import com.example.ui.theme.LiquidGlassBackdrop
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.MonoCodeStyle
 import com.example.ui.theme.MonoTranscriptStyle
 import com.example.ui.theme.OnSafetyAmberContainer
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.SafetyAmberContainer
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.liquidGlassSurface
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
 import com.example.viewmodel.PdfAction
@@ -169,100 +173,113 @@ fun DocumentDetailScreen(
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = doc.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("detail_back_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to vault"
-                        )
-                    }
-                },
-                actions = {
-                    IconButton(
-                        onClick = onToggleStar,
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("detail_star_button")
-                    ) {
-                        Icon(
-                            imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
-                            contentDescription = if (doc.starred) "Unstar document" else "Star document",
-                            tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconButton(
-                        onClick = { showEditSheet = true },
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("detail_edit_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Edit,
-                            contentDescription = "Edit metadata and OCR"
-                        )
-                    }
-                    IconButton(
-                        onClick = { showDeleteConfirm = true },
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .testTag("detail_delete_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteOutline,
-                            contentDescription = "Delete document",
-                            tint = MaterialTheme.colorScheme.error
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 760.dp)
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                // Scanned Image Preview Card (tap to zoom)
-                Surface(
+    LiquidGlassBackdrop {
+        Scaffold(
+            topBar = {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .clickable(enabled = scanBitmap != null) { showZoomDialog = true },
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(18.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        .statusBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
+                    LiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(26.dp),
+                        tone = LiquidGlassTone.DOCK,
+                        elevation = 10.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 6.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = onBack,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("detail_back_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back to vault"
+                                )
+                            }
+                            Text(
+                                text = doc.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(horizontal = 4.dp)
+                            )
+                            IconButton(
+                                onClick = onToggleStar,
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("detail_star_button")
+                            ) {
+                                Icon(
+                                    imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                                    contentDescription = if (doc.starred) "Unstar document" else "Star document",
+                                    tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            IconButton(
+                                onClick = { showEditSheet = true },
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("detail_edit_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Edit,
+                                    contentDescription = "Edit metadata and OCR"
+                                )
+                            }
+                            IconButton(
+                                onClick = { showDeleteConfirm = true },
+                                modifier = Modifier
+                                    .minimumInteractiveComponentSize()
+                                    .testTag("detail_delete_button")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Delete document",
+                                    tint = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.TopCenter
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 760.dp)
+                        .verticalScroll(rememberScrollState())
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    // Scanned Image Preview Card (tap to zoom)
+                    LiquidGlassCard(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD,
+                        onClick = if (scanBitmap != null) ({ showZoomDialog = true }) else null
+                    ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val bmp = scanBitmap
                         if (bmp != null) {
@@ -370,10 +387,11 @@ fun DocumentDetailScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
+                    LiquidGlassPillButton(
                         onClick = { onPdfAction(PdfAction.OPEN) },
                         enabled = !isExportingPdf,
-                        shape = RoundedCornerShape(12.dp),
+                        tone = LiquidGlassTone.ACCENT,
+                        elevation = 6.dp,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                         modifier = Modifier
                             .weight(1f)
@@ -382,16 +400,17 @@ fun DocumentDetailScreen(
                         Icon(
                             imageVector = Icons.Default.PictureAsPdf,
                             contentDescription = null,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.open_pdf), maxLines = 1)
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(stringResource(R.string.open_pdf), maxLines = 1, fontWeight = FontWeight.SemiBold)
                     }
 
-                    FilledTonalButton(
+                    LiquidGlassPillButton(
                         onClick = { onPdfAction(PdfAction.SHARE) },
                         enabled = !isExportingPdf,
-                        shape = RoundedCornerShape(12.dp),
+                        tone = LiquidGlassTone.DOCK,
+                        elevation = 4.dp,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                         modifier = Modifier
                             .weight(1f)
@@ -400,16 +419,17 @@ fun DocumentDetailScreen(
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = null,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.share_pdf), maxLines = 1)
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(stringResource(R.string.share_pdf), maxLines = 1, fontWeight = FontWeight.Medium)
                     }
 
-                    OutlinedButton(
+                    LiquidGlassPillButton(
                         onClick = { onPdfAction(PdfAction.SAVE) },
                         enabled = !isExportingPdf,
-                        shape = RoundedCornerShape(12.dp),
+                        tone = LiquidGlassTone.SUBTLE,
+                        elevation = 0.dp,
                         contentPadding = PaddingValues(horizontal = 10.dp, vertical = 12.dp),
                         modifier = Modifier
                             .weight(1f)
@@ -418,16 +438,16 @@ fun DocumentDetailScreen(
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = null,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(stringResource(R.string.save_pdf), maxLines = 1)
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(stringResource(R.string.save_pdf), maxLines = 1, fontWeight = FontWeight.Medium)
                     }
                 }
 
                 // Save Photo to Phone Gallery Button
                 var isSavingPhoto by remember { mutableStateOf(false) }
-                OutlinedButton(
+                LiquidGlassPillButton(
                     onClick = {
                         val bmp = scanBitmap
                         if (bmp != null && !isSavingPhoto) {
@@ -455,8 +475,9 @@ fun DocumentDetailScreen(
                         }
                     },
                     enabled = scanBitmap != null && !isSavingPhoto,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                    tone = LiquidGlassTone.SUBTLE,
+                    elevation = 0.dp,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 11.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("detail_save_photo_gallery_button")
@@ -467,13 +488,12 @@ fun DocumentDetailScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Full-Resolution Photo to Gallery", maxLines = 1)
+                    Text("Save Full-Resolution Photo to Gallery", maxLines = 1, fontWeight = FontWeight.Medium)
                 }
-                Surface(
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    shape = RoundedCornerShape(24.dp),
+                    tone = LiquidGlassTone.CARD
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -588,11 +608,10 @@ fun DocumentDetailScreen(
                 }
 
                 if (materials.isNotEmpty()) {
-                    Surface(
+                    LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -639,15 +658,15 @@ fun DocumentDetailScreen(
                                     )
                                     if (qty.isNotBlank()) {
                                         Surface(
-                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-                                            shape = RoundedCornerShape(8.dp)
+                                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f),
+                                            shape = CircleShape
                                         ) {
                                             Text(
                                                 text = formatQuantityForDisplay(qty),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
@@ -657,8 +676,8 @@ fun DocumentDetailScreen(
                             if (totalQty != null) {
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                                 Surface(
-                                    color = VerifiedTeal.copy(alpha = 0.12f),
-                                    shape = RoundedCornerShape(10.dp),
+                                    color = VerifiedTeal.copy(alpha = 0.14f),
+                                    shape = RoundedCornerShape(14.dp),
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
@@ -688,11 +707,10 @@ fun DocumentDetailScreen(
                 }
 
                 if (dispatchDetails.isNotEmpty()) {
-                    Surface(
+                    LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -714,11 +732,10 @@ fun DocumentDetailScreen(
                 }
 
                 if (materials.isEmpty() && dispatchDetails.isEmpty() && doc.extractedFields.isNotEmpty()) {
-                    Surface(
+                    LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -744,11 +761,10 @@ fun DocumentDetailScreen(
                 }
 
                 // Searchable Full OCR Transcript Card
-                Surface(
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    shape = RoundedCornerShape(24.dp),
+                    tone = LiquidGlassTone.CARD
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -812,16 +828,19 @@ fun DocumentDetailScreen(
                                 }
                             },
                             singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
+                            shape = CircleShape,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("ocr_find_input")
                         )
 
-                        Surface(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                            shape = RoundedCornerShape(12.dp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .liquidGlassSurface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    tone = LiquidGlassTone.SUBTLE
+                                )
                         ) {
                             SelectionContainer {
                                 Text(
@@ -837,6 +856,7 @@ fun DocumentDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
             }
+        }
         }
     }
 

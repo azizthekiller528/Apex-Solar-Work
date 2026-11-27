@@ -733,4 +733,16 @@ class DocFolioPureJvmTest {
         assertEquals(com.example.ui.theme.AppThemeMode.LIGHT, com.example.ui.theme.AppThemeMode.nextCycle(com.example.ui.theme.AppThemeMode.DARK))
         assertEquals(com.example.ui.theme.AppThemeMode.SYSTEM, com.example.ui.theme.AppThemeMode.nextCycle(com.example.ui.theme.AppThemeMode.LIGHT))
     }
+
+    @Test
+    fun liquidGlassTokens_generateValidGradientsAndSpecularBorders() {
+        com.example.ui.theme.LiquidGlassTone.entries.forEach { tone ->
+            listOf(false, true).forEach { isDark ->
+                val bg = com.example.ui.theme.LiquidGlassTokens.surfaceGradient(tone, isDark)
+                val border = com.example.ui.theme.LiquidGlassTokens.specularBorder(tone, isDark)
+                assertNotNull(bg)
+                assertTrue(border.width.value >= 1f)
+            }
+        }
+    }
 }

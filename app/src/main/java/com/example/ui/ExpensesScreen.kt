@@ -81,6 +81,12 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.SiteExpense
 import com.example.data.model.SiteMaterialRecord
 import com.example.ui.theme.JetBrainsMonoFontFamily
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassChip
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassSegmentedTabs
+import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.liquidGlassSurface
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -160,90 +166,60 @@ fun ExpensesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header: Date Selector Chips Row
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                modifier = Modifier.fillMaxWidth()
+            // Header: Frosted Glass Date Selector Pills + iOS Segmented Switcher
+            LiquidGlassCard(
+                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+                tone = LiquidGlassTone.DOCK,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                Column(modifier = Modifier.padding(top = 8.dp)) {
+                Column(
+                    modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     LazyRow(
                         state = dateListState,
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp)
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
                     ) {
                         items(availableDates) { dateIso ->
                             val isSelected = dateIso == effectiveDateIso
                             val chipLabel = formatChipDate(dateIso)
-                            FilterChip(
+                            LiquidGlassChip(
                                 selected = isSelected,
                                 onClick = { onSelectDate(dateIso) },
-                                label = {
-                                    Text(
-                                        text = chipLabel,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
+                                label = chipLabel
                             )
                         }
 
                         item {
-                            OutlinedButton(
+                            LiquidGlassChip(
+                                selected = false,
                                 onClick = { showDatePicker = true },
-                                modifier = Modifier.height(32.dp),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CalendarMonth,
-                                    contentDescription = "Pick Date",
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Pick Date", fontSize = 12.sp)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // Sub Tabs: Daily Kharcha vs Site Materials
-                    TabRow(
-                        selectedTabIndex = activeSubTab,
-                        containerColor = Color.Transparent,
-                        contentColor = MaterialTheme.colorScheme.primary,
-                        divider = {
-                            HorizontalDivider(
-                                thickness = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.CalendarMonth,
+                                        contentDescription = "Pick Date",
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                },
+                                label = "Pick Date"
                             )
                         }
-                    ) {
-                        Tab(
-                            selected = activeSubTab == 0,
-                            onClick = { activeSubTab = 0 },
-                            text = {
-                                Text(
-                                    "💰 Daily Kharcha (${currentDayExpenses.size})",
-                                    fontWeight = if (activeSubTab == 0) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        )
-                        Tab(
-                            selected = activeSubTab == 1,
-                            onClick = { activeSubTab = 1 },
-                            text = {
-                                Text(
-                                    "📦 Materials In/Out (${currentDayMaterials.size})",
-                                    fontWeight = if (activeSubTab == 1) FontWeight.Bold else FontWeight.Medium
-                                )
-                            }
-                        )
                     }
+
+                    // iOS Segmented Glass Switcher: Daily Kharcha vs Site Materials
+                    LiquidGlassSegmentedTabs(
+                        tabs = listOf(
+                            "💰 Daily Kharcha (${currentDayExpenses.size})",
+                            "📦 Materials In/Out (${currentDayMaterials.size})"
+                        ),
+                        selectedIndex = activeSubTab,
+                        onSelect = { activeSubTab = it },
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
                 }
             }
 
@@ -253,18 +229,14 @@ fun ExpensesScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 12.dp, bottom = 88.dp)
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 104.dp)
             ) {
                 // Top Banner with Date & 1-Tap WhatsApp Share Button
                 item {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+                    LiquidGlassCard(
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
@@ -301,12 +273,12 @@ fun ExpensesScreen(
                                     containerColor = Color(0xFF168A3E),
                                     contentColor = Color.White
                                 ),
-                                shape = RoundedCornerShape(10.dp)
+                                shape = CircleShape
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Share,
                                     contentDescription = "Share",
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(17.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text("WhatsApp", fontWeight = FontWeight.Bold, fontSize = 13.sp)
@@ -318,18 +290,10 @@ fun ExpensesScreen(
                 if (activeSubTab == 0) {
                     // Total Expense Summary Card
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(
-                                    1.dp,
-                                    MaterialTheme.colorScheme.outlineVariant,
-                                    RoundedCornerShape(16.dp)
-                                )
+                        LiquidGlassCard(
+                            shape = RoundedCornerShape(24.dp),
+                            tone = LiquidGlassTone.CARD,
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
@@ -362,12 +326,15 @@ fun ExpensesScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         payerBreakdown.forEach { (payer, amt) ->
-                                            Surface(
-                                                color = MaterialTheme.colorScheme.surfaceContainer,
-                                                shape = RoundedCornerShape(10.dp)
+                                            Box(
+                                                modifier = Modifier
+                                                    .liquidGlassSurface(
+                                                        shape = CircleShape,
+                                                        tone = LiquidGlassTone.SUBTLE
+                                                    )
+                                                    .padding(horizontal = 11.dp, vertical = 6.dp)
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Icon(
@@ -422,17 +389,15 @@ fun ExpensesScreen(
                 } else {
                     // Materials Stock Register
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            ),
-                            shape = RoundedCornerShape(12.dp),
+                        LiquidGlassCard(
+                            shape = RoundedCornerShape(20.dp),
+                            tone = LiquidGlassTone.SUBTLE,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -475,8 +440,8 @@ fun ExpensesScreen(
             }
         }
 
-        // Floating Action Button
-        FloatingActionButton(
+        // Liquid Glass Floating Action Pill
+        LiquidGlassPillButton(
             onClick = {
                 if (activeSubTab == 0) {
                     editingExpense = null
@@ -486,24 +451,20 @@ fun ExpensesScreen(
                     showMaterialEditorDialog = true
                 }
             },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
+            tone = LiquidGlassTone.ACCENT,
+            elevation = 12.dp,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 14.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(20.dp)
+                .padding(16.dp)
                 .testTag("expenses_fab")
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add")
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (activeSubTab == 0) "Add Expense" else "Add Material",
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            Icon(imageVector = Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(19.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = if (activeSubTab == 0) "Add Expense" else "Add Material",
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 
@@ -656,12 +617,10 @@ private fun ExpenseItemRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+    LiquidGlassCard(
+        shape = RoundedCornerShape(22.dp),
+        tone = LiquidGlassTone.CARD,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
@@ -672,10 +631,10 @@ private fun ExpenseItemRow(
             // Icon
             Surface(
                 color = when (expense.category) {
-                    "FUEL" -> Color(0xFFEF5350).copy(alpha = 0.15f)
-                    "FOOD" -> Color(0xFFFF9800).copy(alpha = 0.15f)
-                    "HARDWARE" -> Color(0xFF2196F3).copy(alpha = 0.15f)
-                    "REPAIR" -> Color(0xFF9C27B0).copy(alpha = 0.15f)
+                    "FUEL" -> Color(0xFFEF5350).copy(alpha = 0.16f)
+                    "FOOD" -> Color(0xFFFF9800).copy(alpha = 0.16f)
+                    "HARDWARE" -> Color(0xFF2196F3).copy(alpha = 0.16f)
+                    "REPAIR" -> Color(0xFF9C27B0).copy(alpha = 0.16f)
                     else -> MaterialTheme.colorScheme.surfaceContainer
                 },
                 shape = CircleShape,
@@ -687,10 +646,10 @@ private fun ExpenseItemRow(
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = when (expense.category) {
-                            "FUEL" -> Color(0xFFD32F2F)
-                            "FOOD" -> Color(0xFFF57C00)
-                            "HARDWARE" -> Color(0xFF1976D2)
-                            "REPAIR" -> Color(0xFF7B1FA2)
+                            "FUEL" -> Color(0xFFEF4444)
+                            "FOOD" -> Color(0xFFF59E0B)
+                            "HARDWARE" -> MaterialTheme.colorScheme.primary
+                            "REPAIR" -> Color(0xFFA855F7)
                             else -> MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
@@ -709,35 +668,35 @@ private fun ExpenseItemRow(
 
                 Row(
                     modifier = Modifier
-                        .padding(top = 4.dp)
+                        .padding(top = 5.dp)
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (expense.quantityNote.isNotBlank()) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                            shape = RoundedCornerShape(6.dp)
+                        Box(
+                            modifier = Modifier
+                                .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE)
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = expense.quantityNote,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
 
                     val payer = if (expense.paidBy.isBlank()) "Aziz" else expense.paidBy
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
-                        shape = RoundedCornerShape(6.dp)
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = CircleShape
                     ) {
                         Text(
                             text = "Paid by $payer",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
@@ -778,7 +737,7 @@ private fun ExpenseItemRow(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Delete expense",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -794,12 +753,10 @@ private fun MaterialItemRow(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
+    LiquidGlassCard(
+        shape = RoundedCornerShape(22.dp),
+        tone = LiquidGlassTone.CARD,
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
@@ -808,21 +765,20 @@ private fun MaterialItemRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // S.No
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shape = CircleShape,
-                modifier = Modifier.size(34.dp)
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE),
+                contentAlignment = Alignment.Center
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "${material.sNo}",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontFamily = JetBrainsMonoFontFamily,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                Text(
+                    text = "${material.sNo}",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontFamily = JetBrainsMonoFontFamily,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
@@ -850,7 +806,7 @@ private fun MaterialItemRow(
                     // Out badge
                     Surface(
                         color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(6.dp)
+                        shape = CircleShape
                     ) {
                         Text(
                             text = "OUT: ${material.qtyOut}",
@@ -859,7 +815,7 @@ private fun MaterialItemRow(
                                 fontWeight = FontWeight.SemiBold
                             ),
                             color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
 
@@ -867,7 +823,7 @@ private fun MaterialItemRow(
                     if (material.qtyInStore.isNotBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.tertiaryContainer,
-                            shape = RoundedCornerShape(6.dp)
+                            shape = CircleShape
                         ) {
                             Text(
                                 text = "STORE: ${material.qtyInStore}",
@@ -876,7 +832,7 @@ private fun MaterialItemRow(
                                     fontWeight = FontWeight.SemiBold
                                 ),
                                 color = MaterialTheme.colorScheme.onTertiaryContainer,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                             )
                         }
                     }
@@ -902,7 +858,7 @@ private fun MaterialItemRow(
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Delete material",
-                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.75f),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -913,13 +869,12 @@ private fun MaterialItemRow(
 
 @Composable
 private fun EmptyStateNotice(title: String, message: String) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp),
+    LiquidGlassCard(
+        shape = RoundedCornerShape(24.dp),
+        tone = LiquidGlassTone.CARD,
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 24.dp)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
     ) {
         Column(
             modifier = Modifier

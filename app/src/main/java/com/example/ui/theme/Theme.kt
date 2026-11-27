@@ -7,18 +7,22 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
+val LocalIsDarkTheme = staticCompositionLocalOf { false }
+
 private val LightColors = lightColorScheme(
-    primary = BlueprintNavy,
+    primary = IosBlueLight,
     onPrimary = Color.White,
     primaryContainer = BlueprintContainer,
     onPrimaryContainer = OnBlueprintContainer,
     secondary = SafetyAmber,
     onSecondary = Color.White,
-    secondaryContainer = SafetyAmberContainer,
-    onSecondaryContainer = OnSafetyAmberContainer,
+    secondaryContainer = BlueprintContainer,
+    onSecondaryContainer = OnBlueprintContainer,
     tertiary = VerifiedTeal,
     onTertiary = Color.White,
     tertiaryContainer = VerifiedTealContainer,
@@ -38,7 +42,7 @@ private val LightColors = lightColorScheme(
     error = SlipRose,
     onError = Color.White,
     errorContainer = SlipRoseContainer,
-    onErrorContainer = Color(0xFF470C1D)
+    onErrorContainer = Color(0xFF4C0519)
 )
 
 private val DarkColors = darkColorScheme(
@@ -73,11 +77,11 @@ private val DarkColors = darkColorScheme(
 )
 
 val DocFolioShapes = Shapes(
-    extraSmall = RoundedCornerShape(6.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(20.dp),
-    extraLarge = RoundedCornerShape(26.dp)
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(16.dp),
+    medium = RoundedCornerShape(24.dp),
+    large = RoundedCornerShape(28.dp),
+    extraLarge = RoundedCornerShape(32.dp)
 )
 
 @Composable
@@ -86,12 +90,14 @@ fun DocFolioTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColors else LightColors
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        shapes = DocFolioShapes,
-        content = content
-    )
+    CompositionLocalProvider(LocalIsDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            shapes = DocFolioShapes,
+            content = content
+        )
+    }
 }
 
 enum class AppThemeMode(val storageKey: String, val label: String) {

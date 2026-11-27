@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -70,9 +71,15 @@ import com.example.model.DateMatchMode
 import com.example.model.ScannedDocument
 import com.example.ui.components.DocDatePickerDialog
 import com.example.ui.components.DocumentLedgerCard
+import com.example.ui.theme.LiquidGlassCard
+import com.example.ui.theme.LiquidGlassChip
+import com.example.ui.theme.LiquidGlassPillButton
+import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.LocalIsDarkTheme
 import com.example.ui.theme.MonoCodeStyle
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.liquidGlassSurface
 import com.example.util.DateSearchParser
 import com.example.viewmodel.DocFolioViewModel
 
@@ -166,15 +173,14 @@ fun DateLookupScreen(
         ) {
             // Quick Boss Date Jump Card
             item(key = "boss_date_jump") {
-                Surface(
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    shape = RoundedCornerShape(24.dp),
+                    tone = LiquidGlassTone.CARD
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -193,7 +199,8 @@ fun DateLookupScreen(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
-                            AssistChip(
+                            LiquidGlassChip(
+                                selected = selectedDateIso == DateSearchParser.todayIso(),
                                 onClick = {
                                     val today = DateSearchParser.todayIso()
                                     jumpInput = DateSearchParser.formatSlashDate(today)
@@ -205,10 +212,10 @@ fun DateLookupScreen(
                                     Icon(
                                         imageVector = Icons.Default.Today,
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 },
-                                label = { Text("Today") },
+                                label = "Today",
                                 modifier = Modifier.testTag("jump_today_chip")
                             )
                         }
@@ -218,46 +225,58 @@ fun DateLookupScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
-                                value = jumpInput,
-                                onValueChange = {
-                                    jumpInput = it
-                                    jumpError = null
-                                },
-                                placeholder = { Text("e.g. 12/1/2026 or 24/02/2026") },
-                                singleLine = true,
-                                isError = jumpError != null,
-                                shape = RoundedCornerShape(12.dp),
-                                trailingIcon = {
-                                    IconButton(
-                                        onClick = { showDatePicker = true },
-                                        modifier = Modifier.minimumInteractiveComponentSize()
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CalendarMonth,
-                                            contentDescription = "Open date picker"
-                                        )
-                                    }
-                                },
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                keyboardActions = KeyboardActions(onSearch = { applyTypedJump() }),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                ),
+                            Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .testTag("date_jump_input")
-                            )
-
-                            Button(
-                                onClick = { applyTypedJump() },
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier
-                                    .height(54.dp)
-                                    .testTag("date_jump_go_button")
+                                    .liquidGlassSurface(
+                                        shape = CircleShape,
+                                        tone = LiquidGlassTone.SUBTLE
+                                    )
                             ) {
-                                Text("Go")
+                                OutlinedTextField(
+                                    value = jumpInput,
+                                    onValueChange = {
+                                        jumpInput = it
+                                        jumpError = null
+                                    },
+                                    placeholder = { Text("e.g. 12/1/2026 or 24/02/2026") },
+                                    singleLine = true,
+                                    isError = jumpError != null,
+                                    shape = CircleShape,
+                                    trailingIcon = {
+                                        IconButton(
+                                            onClick = { showDatePicker = true },
+                                            modifier = Modifier.minimumInteractiveComponentSize()
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CalendarMonth,
+                                                contentDescription = "Open date picker"
+                                            )
+                                        }
+                                    },
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(onSearch = { applyTypedJump() }),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedBorderColor = Color.Transparent,
+                                        unfocusedBorderColor = Color.Transparent,
+                                        errorBorderColor = Color.Transparent
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("date_jump_input")
+                                )
+                            }
+
+                            LiquidGlassPillButton(
+                                onClick = { applyTypedJump() },
+                                tone = LiquidGlassTone.ACCENT,
+                                elevation = 6.dp,
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+                                modifier = Modifier.testTag("date_jump_go_button")
+                            ) {
+                                Text("Go", fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -271,7 +290,8 @@ fun DateLookupScreen(
 
                         val altIso = alternateIsoOffer
                         if (altIso != null) {
-                            AssistChip(
+                            LiquidGlassChip(
+                                selected = false,
                                 onClick = {
                                     val prev = selectedDateIso
                                     onSelectDate(altIso)
@@ -281,12 +301,10 @@ fun DateLookupScreen(
                                     Icon(
                                         imageVector = Icons.Default.SwapHoriz,
                                         contentDescription = "Switch date interpretation",
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 },
-                                label = {
-                                    Text("Did you mean ${DateSearchParser.formatFriendlyDate(altIso)}?")
-                                },
+                                label = "Did you mean ${DateSearchParser.formatFriendlyDate(altIso)}?",
                                 modifier = Modifier.testTag("date_lookup_alt_chip")
                             )
                         }
@@ -299,10 +317,10 @@ fun DateLookupScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             DateMatchMode.entries.forEach { mode ->
-                                FilterChip(
+                                LiquidGlassChip(
                                     selected = dateMatchMode == mode,
                                     onClick = { onSelectMatchMode(mode) },
-                                    label = { Text(mode.label, style = MaterialTheme.typography.labelMedium) }
+                                    label = mode.label
                                 )
                             }
                         }
@@ -313,7 +331,7 @@ fun DateLookupScreen(
             // Active Filing Dates Quick Pills (instant jump to days that have scans!)
             if (recentDatesWithDocs.isNotEmpty()) {
                 item(key = "active_dates_strip") {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             text = "DATES WITH FILED DOCUMENTS",
                             style = MaterialTheme.typography.labelSmall,
@@ -327,7 +345,7 @@ fun DateLookupScreen(
                         ) {
                             recentDatesWithDocs.forEach { (iso, count) ->
                                 val isSelected = iso == selectedDateIso
-                                FilterChip(
+                                LiquidGlassChip(
                                     selected = isSelected,
                                     onClick = {
                                         onSelectDate(iso)
@@ -335,12 +353,7 @@ fun DateLookupScreen(
                                         jumpError = null
                                         alternateIsoOffer = null
                                     },
-                                    label = {
-                                        Text(
-                                            text = "${DateSearchParser.formatSlashDate(iso)} ($count)",
-                                            style = MonoCodeStyle
-                                        )
-                                    }
+                                    label = "${DateSearchParser.formatSlashDate(iso)} ($count)"
                                 )
                             }
                         }
@@ -382,16 +395,15 @@ fun DateLookupScreen(
 
             // Selected Day Header + Export Day PDF
             item(key = "selected_day_header") {
-                Surface(
+                LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    shape = RoundedCornerShape(24.dp),
+                    tone = LiquidGlassTone.CARD
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -399,29 +411,28 @@ fun DateLookupScreen(
                             Text(
                                 text = DateSearchParser.formatFriendlyDate(selectedDateIso),
                                 style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                                color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
                                 text = "${DateSearchParser.formatSlashDate(selectedDateIso)} • ${docsForSelectedDate.size} document(s)",
                                 style = MonoCodeStyle,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
 
                         if (docsForSelectedDate.isNotEmpty()) {
-                            Button(
+                            LiquidGlassPillButton(
                                 onClick = { onExportDayPdf(selectedDateIso, docsForSelectedDate) },
                                 enabled = !isExportingPdf,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ),
+                                tone = LiquidGlassTone.ACCENT,
+                                elevation = 6.dp,
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
                                 modifier = Modifier.testTag("export_day_pdf_button")
                             ) {
                                 if (isExportingPdf) {
                                     CircularProgressIndicator(
                                         modifier = Modifier.size(16.dp),
-                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        color = Color.White,
                                         strokeWidth = 2.dp
                                     )
                                 } else {
@@ -432,7 +443,7 @@ fun DateLookupScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(stringResource(R.string.export_day_pdf))
+                                Text(stringResource(R.string.export_day_pdf), fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -441,11 +452,10 @@ fun DateLookupScreen(
 
             if (docsForSelectedDate.isEmpty()) {
                 item(key = "no_docs_for_day") {
-                    Surface(
+                    LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surface,
-                        shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        shape = RoundedCornerShape(24.dp),
+                        tone = LiquidGlassTone.CARD
                     ) {
                         Column(
                             modifier = Modifier
@@ -512,6 +522,7 @@ private fun FilingCalendarCard(
     onNextMonth: () -> Unit,
     onSelectDay: (String) -> Unit
 ) {
+    val isDark = LocalIsDarkTheme.current
     val daysCount = remember(year, month) { DateSearchParser.daysInMonth(year, month) }
     val startOffset = remember(year, month) { DateSearchParser.firstDayOfWeekOffset(year, month) }
     val todayIso = remember { DateSearchParser.todayIso() }
@@ -519,11 +530,10 @@ private fun FilingCalendarCard(
     val weeks = (totalCells + 6) / 7
     val weekdayLabels = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
 
-    Surface(
+    LiquidGlassCard(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surface,
-        shape = RoundedCornerShape(18.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        shape = RoundedCornerShape(24.dp),
+        tone = LiquidGlassTone.CARD
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             Row(
@@ -537,10 +547,17 @@ private fun FilingCalendarCard(
                         .minimumInteractiveComponentSize()
                         .testTag("calendar_prev_month")
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "Previous month"
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "Previous month"
+                        )
+                    }
                 }
                 Text(
                     text = DateSearchParser.formatMonthYear(year, month),
@@ -553,10 +570,17 @@ private fun FilingCalendarCard(
                         .minimumInteractiveComponentSize()
                         .testTag("calendar_next_month")
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "Next month"
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.SUBTLE),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "Next month"
+                        )
+                    }
                 }
             }
 
@@ -597,21 +621,17 @@ private fun FilingCalendarCard(
                                 modifier = Modifier
                                     .weight(1f)
                                     .aspectRatio(1f)
-                                    .clip(RoundedCornerShape(10.dp))
+                                    .clip(CircleShape)
                                     .background(
                                         when {
                                             isSelected -> MaterialTheme.colorScheme.primary
-                                            count > 0 -> SafetyAmber.copy(alpha = 0.14f)
-                                            else -> MaterialTheme.colorScheme.surface
+                                            count > 0 -> SafetyAmber.copy(alpha = if (isDark) 0.22f else 0.14f)
+                                            else -> if (isDark) Color.White.copy(alpha = 0.04f) else Color.White.copy(alpha = 0.45f)
                                         }
                                     )
                                     .then(
                                         if (isToday && !isSelected) {
-                                            Modifier.border(
-                                                1.5.dp,
-                                                VerifiedTeal,
-                                                RoundedCornerShape(10.dp)
-                                            )
+                                            Modifier.border(1.5.dp, VerifiedTeal, CircleShape)
                                         } else {
                                             Modifier
                                         }
@@ -628,7 +648,7 @@ private fun FilingCalendarCard(
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = if (isSelected || count > 0) FontWeight.Bold else FontWeight.Normal,
                                         color = when {
-                                            isSelected -> MaterialTheme.colorScheme.onPrimary
+                                            isSelected -> Color.White
                                             else -> MaterialTheme.colorScheme.onSurface
                                         }
                                     )
@@ -639,7 +659,7 @@ private fun FilingCalendarCard(
                                                 .size(5.dp)
                                                 .clip(CircleShape)
                                                 .background(
-                                                    if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                                    if (isSelected) Color.White
                                                     else SafetyAmber
                                                 )
                                         )

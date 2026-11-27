@@ -1,8 +1,8 @@
 {
-  "versionCode": 23,
-  "versionName": "2.12",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.12.apk",
-  "sha256": "482ac80d99b1a8348c32b856742be1b6143d5a22aff5cf5f6382070ca61021d0",
-  "sizeBytes": 46472639,
-  "releaseNotes": "• Added 1-tap Day / Night mode toggle button in top bar + Auto/Day/Night option in profile menu\n• Remembers your Day or Night preference across restarts & updates status bar icons dynamically\n• Fixed Store/Site badge contrast in Night mode"
+  "versionCode": 24,
+  "versionName": "2.13",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.13.apk",
+  "sha256": "a4055b25b6d1ad683ab5a0c1ad807294f2f780b2be31186e541eed2cf3def251",
+  "sizeBytes": 46505407,
+  "releaseNotes": "• Whole-app iPhone iOS 26 Liquid Glass redesign across Day & Night modes\n• Frosted translucent cards, specular glass highlights, floating Pill Dock & Spotlight search\n• Responsive Phone & Tablet layouts with full Expenses, Sites, Vault, Date Lookup & Scan Review parity"
 }

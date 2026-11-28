@@ -64,6 +64,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.data.SiteLocationRepository
 import com.example.data.model.SiteLocation
@@ -72,6 +73,7 @@ import com.example.ui.theme.LiquidGlassCard
 import com.example.ui.theme.LiquidGlassPillButton
 import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.liquidGlassSurface
+import com.example.ui.theme.liquidSquircleShape
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -83,7 +85,9 @@ fun SitesScreen(
     onTogglePin: (SiteLocation) -> Unit,
     onDeleteSite: (SiteLocation) -> Unit,
     onFeedback: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    topContentPadding: Dp = 12.dp,
+    bottomContentPadding: Dp = 104.dp
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -180,48 +184,84 @@ fun SitesScreen(
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = topContentPadding,
+                bottom = bottomContentPadding
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
+            item(key = "sites_summary_header") {
                 LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = liquidSquircleShape(24.dp),
                     tone = LiquidGlassTone.CARD
                 ) {
-                    Row(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .liquidGlassSurface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    tone = LiquidGlassTone.ACCENT
-                                ),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Warehouse,
-                                contentDescription = null,
-                                tint = Color.White
-                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .liquidGlassSurface(
+                                        shape = RoundedCornerShape(14.dp),
+                                        tone = LiquidGlassTone.ACCENT
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warehouse,
+                                    contentDescription = null,
+                                    tint = Color.White
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${sites.size} Saved Site Location${if (sites.size == 1) "" else "s"}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Store GPS pins & Google Maps links synced live.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "${sites.size} Saved Site Location${if (sites.size == 1) "" else "s"}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Store GPS pins & Google Maps links synced live. Tap Open in Google Maps to jump right there.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                        LiquidGlassPillButton(
+                            onClick = {
+                                editingSite = null
+                                showEditorDialog = true
+                            },
+                            tone = LiquidGlassTone.ACCENT,
+                            elevation = 6.dp,
+                            backdrop = null,
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 11.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("add_site_fab")
+                        ) {
+                            if (isSaving) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = Color.White
+                                )
+                            } else {
+                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(19.dp))
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Add Site", fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -231,7 +271,7 @@ fun SitesScreen(
                 item {
                     LiquidGlassCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(24.dp),
+                        shape = liquidSquircleShape(24.dp),
                         tone = LiquidGlassTone.CARD
                     ) {
                         Column(
@@ -253,7 +293,7 @@ fun SitesScreen(
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "Tap + Add Site to save a GPS coordinate or Google Maps link for drivers and field team.",
+                                text = "Tap + Add Site above to save a GPS coordinate or Google Maps link for drivers and field team.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -285,32 +325,6 @@ fun SitesScreen(
                     onDelete = { pendingDeleteSite = site }
                 )
             }
-        }
-
-        LiquidGlassPillButton(
-            onClick = {
-                editingSite = null
-                showEditorDialog = true
-            },
-            tone = LiquidGlassTone.ACCENT,
-            elevation = 12.dp,
-            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 14.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .testTag("add_site_fab")
-        ) {
-            if (isSaving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(18.dp),
-                    strokeWidth = 2.dp,
-                    color = Color.White
-                )
-            } else {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(19.dp))
-            }
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Add Site", fontWeight = FontWeight.SemiBold)
         }
     }
 

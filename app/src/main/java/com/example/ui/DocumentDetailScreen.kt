@@ -15,13 +15,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -59,7 +63,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -71,6 +74,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,8 +88,10 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -102,20 +108,25 @@ import com.example.model.DocumentCategory
 import com.example.model.ScannedDocument
 import com.example.ui.components.CategoryBadge
 import com.example.ui.components.DocDatePickerDialog
-import com.example.ui.theme.LiquidGlassBackdrop
 import com.example.ui.theme.LiquidGlassCard
 import com.example.ui.theme.LiquidGlassPillButton
 import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.LocalIsDarkTheme
 import com.example.ui.theme.MonoCodeStyle
 import com.example.ui.theme.MonoTranscriptStyle
 import com.example.ui.theme.OnSafetyAmberContainer
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.SafetyAmberContainer
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.drawLiquidAmbientBackground
+import com.example.ui.theme.liquidCapsuleShape
 import com.example.ui.theme.liquidGlassSurface
+import com.example.ui.theme.liquidSquircleShape
 import com.example.util.DateSearchParser
 import com.example.util.ImageStorageHelper
 import com.example.viewmodel.PdfAction
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -173,113 +184,42 @@ fun DocumentDetailScreen(
         )
     }
 
-    LiquidGlassBackdrop {
-        Scaffold(
-            topBar = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    LiquidGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(26.dp),
-                        tone = LiquidGlassTone.DOCK,
-                        elevation = 10.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 6.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("detail_back_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Back to vault"
-                                )
-                            }
-                            Text(
-                                text = doc.title,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .padding(horizontal = 4.dp)
-                            )
-                            IconButton(
-                                onClick = onToggleStar,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("detail_star_button")
-                            ) {
-                                Icon(
-                                    imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
-                                    contentDescription = if (doc.starred) "Unstar document" else "Star document",
-                                    tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            IconButton(
-                                onClick = { showEditSheet = true },
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("detail_edit_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Edit metadata and OCR"
-                                )
-                            }
-                            IconButton(
-                                onClick = { showDeleteConfirm = true },
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("detail_delete_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteOutline,
-                                    contentDescription = "Delete document",
-                                    tint = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            containerColor = Color.Transparent
-        ) { innerPadding ->
-            Box(
+    val isDark = LocalIsDarkTheme.current
+    val currentIsDark by rememberUpdatedState(isDark)
+    val density = LocalDensity.current
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    var topBarClearance by remember(statusTop) { mutableStateOf(statusTop + 70.dp) }
+    val detailBackdrop = rememberLayerBackdrop {
+        drawLiquidAmbientBackground(isDark = currentIsDark)
+        drawContent()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // LAYER 1 (CAPTURED BY BACKDROP): Full-bleed vertically scrolling document body
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(detailBackdrop),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.TopCenter
+                    .widthIn(max = 760.dp)
+                    .verticalScroll(rememberScrollState())
+                    .navigationBarsPadding()
+                    .padding(start = 16.dp, end = 16.dp, top = topBarClearance + 4.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Column(
+                // Scanned Image Preview Card (tap to zoom)
+                LiquidGlassCard(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .widthIn(max = 760.dp)
-                        .verticalScroll(rememberScrollState())
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .fillMaxWidth()
+                        .height(260.dp),
+                    shape = liquidSquircleShape(24.dp),
+                    tone = LiquidGlassTone.CARD,
+                    onClick = if (scanBitmap != null) ({ showZoomDialog = true }) else null
                 ) {
-                    // Scanned Image Preview Card (tap to zoom)
-                    LiquidGlassCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(260.dp),
-                        shape = RoundedCornerShape(24.dp),
-                        tone = LiquidGlassTone.CARD,
-                        onClick = if (scanBitmap != null) ({ showZoomDialog = true }) else null
-                    ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val bmp = scanBitmap
                         if (bmp != null) {
@@ -403,7 +343,13 @@ fun DocumentDetailScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(stringResource(R.string.open_pdf), maxLines = 1, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            text = stringResource(R.string.open_pdf),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
 
                     LiquidGlassPillButton(
@@ -422,7 +368,13 @@ fun DocumentDetailScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(stringResource(R.string.share_pdf), maxLines = 1, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = stringResource(R.string.share_pdf),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
 
                     LiquidGlassPillButton(
@@ -441,7 +393,13 @@ fun DocumentDetailScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(5.dp))
-                        Text(stringResource(R.string.save_pdf), maxLines = 1, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = stringResource(R.string.save_pdf),
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
 
@@ -488,11 +446,17 @@ fun DocumentDetailScreen(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save Full-Resolution Photo to Gallery", maxLines = 1, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Save Full-Resolution Photo to Gallery",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(24.dp),
+                    shape = liquidSquircleShape(24.dp),
                     tone = LiquidGlassTone.CARD
                 ) {
                     Column(
@@ -857,6 +821,92 @@ fun DocumentDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+
+        // LAYER 2: Floating Optical Top Header Capsule (refracts scrolling image & text beneath)
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    val measured = with(density) { size.height.toDp() }
+                    if (measured > 0.dp && measured != topBarClearance) {
+                        topBarClearance = measured
+                    }
+                }
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            LiquidGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = liquidCapsuleShape(),
+                tone = LiquidGlassTone.DOCK,
+                elevation = 10.dp,
+                backdrop = detailBackdrop
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("detail_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to vault"
+                        )
+                    }
+                    Text(
+                        text = doc.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp)
+                    )
+                    IconButton(
+                        onClick = onToggleStar,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("detail_star_button")
+                    ) {
+                        Icon(
+                            imageVector = if (doc.starred) Icons.Default.Star else Icons.Outlined.StarBorder,
+                            contentDescription = if (doc.starred) "Unstar document" else "Star document",
+                            tint = if (doc.starred) SafetyAmber else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    IconButton(
+                        onClick = { showEditSheet = true },
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("detail_edit_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit metadata and OCR"
+                        )
+                    }
+                    IconButton(
+                        onClick = { showDeleteConfirm = true },
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("detail_delete_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DeleteOutline,
+                            contentDescription = "Delete document",
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
         }
     }
 

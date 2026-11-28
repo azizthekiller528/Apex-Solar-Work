@@ -744,5 +744,7 @@ class DocFolioPureJvmTest {
                 assertTrue(border.width.value >= 1f)
             }
         }
+        assertNotNull(com.example.ui.theme.liquidSquircleShape())
+        assertNotNull(com.example.ui.theme.liquidCapsuleShape())
     }
 }

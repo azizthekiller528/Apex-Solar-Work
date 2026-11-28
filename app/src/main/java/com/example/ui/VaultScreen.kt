@@ -42,6 +42,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.DateMatchMode
@@ -85,7 +86,9 @@ fun VaultScreen(
     onSharePdf: (ScannedDocument) -> Unit,
     onExportDayPdf: (String, List<ScannedDocument>) -> Unit,
     onRequestScan: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    topContentPadding: Dp = 12.dp,
+    bottomContentPadding: Dp = 104.dp
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showRangeStartPicker by remember { mutableStateOf(false) }
@@ -115,7 +118,12 @@ fun VaultScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .widthIn(max = 760.dp),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 104.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = topContentPadding,
+                bottom = bottomContentPadding
+            ),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Dedicated Search & Date-Range Filter Component (Firestore query-backed)

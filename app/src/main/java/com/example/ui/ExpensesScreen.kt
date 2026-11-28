@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -76,6 +77,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.SiteExpense
@@ -87,6 +90,7 @@ import com.example.ui.theme.LiquidGlassPillButton
 import com.example.ui.theme.LiquidGlassSegmentedTabs
 import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.liquidGlassSurface
+import com.example.ui.theme.liquidSquircleShape
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -107,7 +111,9 @@ fun ExpensesScreen(
     onShareReport: (context: Context, dateFormatted: String, expenses: List<SiteExpense>, materials: List<SiteMaterialRecord>) -> Unit,
     modifier: Modifier = Modifier,
     onUpdateExpense: (previousDateIso: String, SiteExpense) -> Unit = { _, exp -> onAddExpense(exp) },
-    onUpdateMaterial: (previousDateIso: String, SiteMaterialRecord) -> Unit = { _, mat -> onAddMaterial(mat) }
+    onUpdateMaterial: (previousDateIso: String, SiteMaterialRecord) -> Unit = { _, mat -> onAddMaterial(mat) },
+    topContentPadding: Dp = 6.dp,
+    bottomContentPadding: Dp = 104.dp
 ) {
     val context = LocalContext.current
     var activeSubTab by remember { mutableIntStateOf(0) } // 0 = Kharcha (Expenses), 1 = Materials (Stock)
@@ -166,23 +172,23 @@ fun ExpensesScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Header: Frosted Glass Date Selector Pills + iOS Segmented Switcher
+            // Header: Frosted Glass Date Selector Pills + iOS Segmented Switcher + Inline Actions (Zero Card Overlap)
             LiquidGlassCard(
-                shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+                shape = liquidSquircleShape(24.dp),
                 tone = LiquidGlassTone.DOCK,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .padding(start = 12.dp, end = 12.dp, top = topContentPadding, bottom = 4.dp)
             ) {
                 Column(
                     modifier = Modifier.padding(top = 10.dp, bottom = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     LazyRow(
                         state = dateListState,
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                        contentPadding = PaddingValues(horizontal = 12.dp)
                     ) {
                         items(availableDates) { dateIso ->
                             val isSelected = dateIso == effectiveDateIso
@@ -210,16 +216,84 @@ fun ExpensesScreen(
                         }
                     }
 
-                    // iOS Segmented Glass Switcher: Daily Kharcha vs Site Materials
+                    // iOS Segmented Glass Switcher: concise labels prevent narrow-phone truncation
                     LiquidGlassSegmentedTabs(
                         tabs = listOf(
-                            "💰 Daily Kharcha (${currentDayExpenses.size})",
-                            "📦 Materials In/Out (${currentDayMaterials.size})"
+                            "💰 Kharcha (${currentDayExpenses.size})",
+                            "📦 Materials (${currentDayMaterials.size})"
                         ),
                         selectedIndex = activeSubTab,
                         onSelect = { activeSubTab = it },
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LiquidGlassPillButton(
+                            onClick = {
+                                if (activeSubTab == 0) {
+                                    editingExpense = null
+                                    showExpenseEditorDialog = true
+                                } else {
+                                    editingMaterial = null
+                                    showMaterialEditorDialog = true
+                                }
+                            },
+                            tone = LiquidGlassTone.ACCENT,
+                            elevation = 6.dp,
+                            backdrop = null,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("expenses_fab")
+                        ) {
+                            Icon(imageVector = Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (activeSubTab == 0) "Add Expense" else "Add Material",
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                onShareReport(
+                                    context,
+                                    formattedDateHeader,
+                                    currentDayExpenses,
+                                    currentDayMaterials
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF168A3E),
+                                contentColor = Color.White
+                            ),
+                            shape = CircleShape,
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Share",
+                                modifier = Modifier.size(17.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "WhatsApp",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
                 }
             }
 
@@ -229,60 +303,33 @@ fun ExpensesScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 10.dp, bottom = 104.dp)
+                contentPadding = PaddingValues(top = 8.dp, bottom = bottomContentPadding)
             ) {
-                // Top Banner with Date & 1-Tap WhatsApp Share Button
+                // Date Subtitle Card
                 item {
                     LiquidGlassCard(
-                        shape = RoundedCornerShape(24.dp),
-                        tone = LiquidGlassTone.CARD,
+                        shape = liquidSquircleShape(20.dp),
+                        tone = LiquidGlassTone.SUBTLE,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(14.dp),
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = formattedDateHeader,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Apex Solar Site Log • $effectiveDateIso",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            // 1-Tap WhatsApp Share
-                            Button(
-                                onClick = {
-                                    onShareReport(
-                                        context,
-                                        formattedDateHeader,
-                                        currentDayExpenses,
-                                        currentDayMaterials
-                                    )
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFF168A3E),
-                                    contentColor = Color.White
-                                ),
-                                shape = CircleShape
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Share",
-                                    modifier = Modifier.size(17.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("WhatsApp", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
+                            Text(
+                                text = formattedDateHeader,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = effectiveDateIso,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -291,7 +338,7 @@ fun ExpensesScreen(
                     // Total Expense Summary Card
                     item {
                         LiquidGlassCard(
-                            shape = RoundedCornerShape(24.dp),
+                            shape = liquidSquircleShape(24.dp),
                             tone = LiquidGlassTone.CARD,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -371,7 +418,7 @@ fun ExpensesScreen(
                         item {
                             EmptyStateNotice(
                                 title = "No Expenses Logged",
-                                message = "No daily expenses recorded for $effectiveDateIso. Tap '+ Add Expense' below."
+                                message = "No daily expenses recorded for $effectiveDateIso. Tap '+ Add Expense' above."
                             )
                         }
                     } else {
@@ -390,7 +437,7 @@ fun ExpensesScreen(
                     // Materials Stock Register
                     item {
                         LiquidGlassCard(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = liquidSquircleShape(20.dp),
                             tone = LiquidGlassTone.SUBTLE,
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -421,7 +468,7 @@ fun ExpensesScreen(
                         item {
                             EmptyStateNotice(
                                 title = "No Materials Recorded",
-                                message = "No material stock movements logged for $effectiveDateIso. Tap '+ Add Material' below."
+                                message = "No material stock movements logged for $effectiveDateIso. Tap '+ Add Material' above."
                             )
                         }
                     } else {
@@ -438,33 +485,6 @@ fun ExpensesScreen(
                     }
                 }
             }
-        }
-
-        // Liquid Glass Floating Action Pill
-        LiquidGlassPillButton(
-            onClick = {
-                if (activeSubTab == 0) {
-                    editingExpense = null
-                    showExpenseEditorDialog = true
-                } else {
-                    editingMaterial = null
-                    showMaterialEditorDialog = true
-                }
-            },
-            tone = LiquidGlassTone.ACCENT,
-            elevation = 12.dp,
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 14.dp),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .testTag("expenses_fab")
-        ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(19.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = if (activeSubTab == 0) "Add Expense" else "Add Material",
-                fontWeight = FontWeight.Bold
-            )
         }
     }
 

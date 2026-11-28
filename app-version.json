@@ -1,8 +1,8 @@
 {
-  "versionCode": 24,
-  "versionName": "2.13",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.13.apk",
-  "sha256": "a4055b25b6d1ad683ab5a0c1ad807294f2f780b2be31186e541eed2cf3def251",
-  "sizeBytes": 46505407,
-  "releaseNotes": "• Whole-app iPhone iOS 26 Liquid Glass redesign across Day & Night modes\n• Frosted translucent cards, specular glass highlights, floating Pill Dock & Spotlight search\n• Responsive Phone & Tablet layouts with full Expenses, Sites, Vault, Date Lookup & Scan Review parity"
+  "versionCode": 25,
+  "versionName": "2.14",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.14.apk",
+  "sha256": "d6f76b52ef1991c0b6ab6701431fc05332cc2b339ff740a4d0bc672de1ab81be",
+  "sizeBytes": 48059021,
+  "releaseNotes": "• Real optical Liquid Glass refraction, live blur & chromatic lens dispersion powered by AndroidLiquidGlass\n• Spring-sliding 5-tab Pill Dock + detached Scan orb (fixes Scan Doc covering bottom cards)\n• Non-overlapping Add Expense/Material & Add Site actions plus G2 squircle corners in Day & Night modes"
 }

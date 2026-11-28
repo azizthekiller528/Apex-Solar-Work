@@ -62,7 +62,11 @@ import com.example.ui.theme.LiquidGlassPillButton
 import com.example.ui.theme.LiquidGlassTone
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.liquidCapsuleShape
 import com.example.ui.theme.liquidGlassSurface
+import com.example.ui.theme.liquidSquircleShape
+import com.example.ui.theme.opticalLiquidGlass
+import com.example.ui.theme.rememberAmbientCanvasBackdrop
 
 @Composable
 fun AuthScreen(
@@ -71,6 +75,7 @@ fun AuthScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
+    val ambientBackdrop = rememberAmbientCanvasBackdrop()
 
     var isCheckingSession by remember { mutableStateOf(true) }
     var isSigningIn by remember { mutableStateOf(false) }
@@ -109,7 +114,15 @@ fun AuthScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
                         modifier = Modifier
-                            .liquidGlassSurface(shape = CircleShape, tone = LiquidGlassTone.DOCK)
+                            .opticalLiquidGlass(
+                                backdrop = ambientBackdrop,
+                                shape = { liquidCapsuleShape() },
+                                tone = LiquidGlassTone.DOCK,
+                                blurRadius = 0.dp,
+                                refractionHeight = 10.dp,
+                                refractionAmount = 16.dp,
+                                hasShadow = true
+                            )
                             .padding(horizontal = 12.dp, vertical = 7.dp)
                     ) {
                         Row(
@@ -147,9 +160,10 @@ fun AuthScreen(
 
                 LiquidGlassCard(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(28.dp),
+                    shape = liquidSquircleShape(28.dp),
                     tone = LiquidGlassTone.DOCK,
-                    elevation = 14.dp
+                    elevation = 14.dp,
+                    backdrop = ambientBackdrop
                 ) {
                     Column(
                         modifier = Modifier.padding(22.dp),
@@ -225,6 +239,7 @@ fun AuthScreen(
                             enabled = !isSigningIn && !isCheckingSession,
                             tone = LiquidGlassTone.ACCENT,
                             elevation = 8.dp,
+                            backdrop = ambientBackdrop,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(54.dp)

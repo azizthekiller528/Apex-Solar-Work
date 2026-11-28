@@ -18,13 +18,17 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -47,7 +51,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -56,6 +59,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,26 +69,34 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.R
 import com.example.model.DocumentCategory
 import com.example.ui.components.DocDatePickerDialog
-import com.example.ui.theme.LiquidGlassBackdrop
 import com.example.ui.theme.LiquidGlassCard
 import com.example.ui.theme.LiquidGlassChip
 import com.example.ui.theme.LiquidGlassPillButton
 import com.example.ui.theme.LiquidGlassTone
+import com.example.ui.theme.LocalIsDarkTheme
 import com.example.ui.theme.MonoTranscriptStyle
 import com.example.ui.theme.SafetyAmber
 import com.example.ui.theme.VerifiedTeal
+import com.example.ui.theme.drawLiquidAmbientBackground
+import com.example.ui.theme.liquidCapsuleShape
 import com.example.ui.theme.liquidGlassSurface
+import com.example.ui.theme.liquidSquircleShape
 import com.example.util.DateSearchParser
 import com.example.viewmodel.ScanDraft
 import com.example.viewmodel.ScanFlowState
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,81 +113,99 @@ fun ScanReviewScreen(
         onCancel()
     }
 
-    LiquidGlassBackdrop {
-        Scaffold(
-            topBar = {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    LiquidGlassCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(26.dp),
-                        tone = LiquidGlassTone.DOCK,
-                        elevation = 10.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 6.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = onCancel,
-                                enabled = !isSaving,
-                                modifier = Modifier
-                                    .minimumInteractiveComponentSize()
-                                    .testTag("scan_back_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Cancel scan"
-                                )
-                            }
-                            Text(
-                                text = when (scanState) {
-                                    is ScanFlowState.Review -> "Verify Details & Save PDF"
-                                    is ScanFlowState.Error -> "Scan Interrupted"
-                                    else -> "Scan Document"
-                                },
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(horizontal = 4.dp)
-                            )
-                        }
+    val isDark = LocalIsDarkTheme.current
+    val currentIsDark by rememberUpdatedState(isDark)
+    val density = LocalDensity.current
+    val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    var topBarClearance by remember(statusTop) { mutableStateOf(statusTop + 70.dp) }
+
+    val contentBackdrop = rememberLayerBackdrop {
+        drawLiquidAmbientBackground(isDark = currentIsDark)
+        drawContent()
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // LAYER 1 (CAPTURED BY BACKDROP): Full-bleed form / error body
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(contentBackdrop),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            when (scanState) {
+                is ScanFlowState.Error -> {
+                    ScanErrorView(
+                        state = scanState,
+                        topContentPadding = topBarClearance + 8.dp,
+                        onCancel = onCancel
+                    )
+                }
+
+                is ScanFlowState.Review -> {
+                    ReviewDraftView(
+                        draft = scanState.draft,
+                        isSaving = scanState.isSaving,
+                        isExtractingWithAi = isExtractingWithAi,
+                        topContentPadding = topBarClearance + 4.dp,
+                        onAutoFillWithAi = onAutoFillWithAi,
+                        onUpdateDraft = onUpdateDraft,
+                        onSaveDocument = onSaveDocument
+                    )
+                }
+
+                ScanFlowState.Idle -> Unit
+            }
+        }
+
+        // LAYER 2: Floating Optical Top Header Capsule
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    val measured = with(density) { size.height.toDp() }
+                    if (measured > 0.dp && measured != topBarClearance) {
+                        topBarClearance = measured
                     }
                 }
-            },
-            containerColor = Color.Transparent
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding),
-                contentAlignment = Alignment.TopCenter
+                .statusBarsPadding()
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            LiquidGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = liquidCapsuleShape(),
+                tone = LiquidGlassTone.DOCK,
+                elevation = 10.dp,
+                backdrop = contentBackdrop
             ) {
-                when (scanState) {
-                    is ScanFlowState.Error -> {
-                        ScanErrorView(
-                            state = scanState,
-                            onCancel = onCancel
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onCancel,
+                        enabled = !isSaving,
+                        modifier = Modifier
+                            .minimumInteractiveComponentSize()
+                            .testTag("scan_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Cancel scan"
                         )
                     }
-
-                    is ScanFlowState.Review -> {
-                        ReviewDraftView(
-                            draft = scanState.draft,
-                            isSaving = scanState.isSaving,
-                            isExtractingWithAi = isExtractingWithAi,
-                            onAutoFillWithAi = onAutoFillWithAi,
-                            onUpdateDraft = onUpdateDraft,
-                            onSaveDocument = onSaveDocument
-                        )
-                    }
-
-                    ScanFlowState.Idle -> Unit
+                    Text(
+                        text = when (scanState) {
+                            is ScanFlowState.Review -> "Verify Details & Save PDF"
+                            is ScanFlowState.Error -> "Scan Interrupted"
+                            else -> "Scan Document"
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
                 }
             }
         }
@@ -185,6 +215,7 @@ fun ScanReviewScreen(
 @Composable
 private fun ScanErrorView(
     state: ScanFlowState.Error,
+    topContentPadding: Dp,
     onCancel: () -> Unit
 ) {
     Column(
@@ -192,7 +223,8 @@ private fun ScanErrorView(
             .fillMaxSize()
             .widthIn(max = 560.dp)
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
+            .navigationBarsPadding()
+            .padding(start = 20.dp, end = 20.dp, top = topContentPadding, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -211,7 +243,7 @@ private fun ScanErrorView(
 
         LiquidGlassCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(22.dp),
+            shape = liquidSquircleShape(22.dp),
             tone = LiquidGlassTone.CARD
         ) {
             Column(
@@ -245,6 +277,7 @@ private fun ScanErrorView(
             onClick = onCancel,
             tone = LiquidGlassTone.DOCK,
             elevation = 6.dp,
+            backdrop = null,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp)
@@ -262,6 +295,7 @@ private fun ReviewDraftView(
     draft: ScanDraft,
     isSaving: Boolean,
     isExtractingWithAi: Boolean = false,
+    topContentPadding: Dp = 12.dp,
     onAutoFillWithAi: () -> Unit = {},
     onUpdateDraft: ((ScanDraft) -> ScanDraft) -> Unit,
     onSaveDocument: () -> Unit
@@ -298,22 +332,38 @@ private fun ReviewDraftView(
     val docDateError = docDateText.isNotBlank() && parsedDocDate == null
     val filedDateError = parsedFiledDate == null
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .widthIn(max = 700.dp)
+    val isDark = LocalIsDarkTheme.current
+    val currentIsDark by rememberUpdatedState(isDark)
+    val density = LocalDensity.current
+    val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    var bottomBarClearance by remember(navBottom) { mutableStateOf(navBottom + 86.dp) }
+    val formBackdrop = rememberLayerBackdrop {
+        drawLiquidAmbientBackground(isDark = currentIsDark)
+        drawContent()
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             modifier = Modifier
-                .weight(1f)
+                .fillMaxSize()
+                .layerBackdrop(formBackdrop)
+                .widthIn(max = 700.dp)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = topContentPadding,
+                    bottom = bottomBarClearance + 14.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Compact Scan Preview + OCR Status Banner
             LiquidGlassCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                shape = liquidSquircleShape(24.dp),
                 tone = LiquidGlassTone.CARD
             ) {
                 Row(
@@ -609,50 +659,68 @@ private fun ReviewDraftView(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Bottom Save & Generate Searchable PDF Bar
-        LiquidGlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
-            tone = LiquidGlassTone.DOCK,
-            elevation = 10.dp
+        // Bottom Save & Generate Searchable PDF Bar (Optical Liquid Glass)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { size ->
+                    val measured = with(density) { size.height.toDp() }
+                    if (measured > 0.dp && measured != bottomBarClearance) {
+                        bottomBarClearance = measured
+                    }
+                }
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            LiquidGlassCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = liquidCapsuleShape(),
+                tone = LiquidGlassTone.DOCK,
+                elevation = 10.dp,
+                backdrop = formBackdrop
             ) {
-                LiquidGlassPillButton(
-                    onClick = onSaveDocument,
-                    enabled = !isSaving && !docDateError && !filedDateError && draft.title.isNotBlank(),
-                    tone = LiquidGlassTone.ACCENT,
-                    elevation = 8.dp,
-                    contentPadding = PaddingValues(vertical = 14.dp),
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("save_scanned_doc_button")
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
-                    if (isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("Building Searchable PDF & Saving…", fontWeight = FontWeight.SemiBold)
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.PictureAsPdf,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = stringResource(R.string.save_and_create_pdf),
-                            textAlign = TextAlign.Center,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                    LiquidGlassPillButton(
+                        onClick = onSaveDocument,
+                        enabled = !isSaving && !docDateError && !filedDateError && draft.title.isNotBlank(),
+                        tone = LiquidGlassTone.ACCENT,
+                        elevation = 6.dp,
+                        backdrop = null,
+                        contentPadding = PaddingValues(vertical = 13.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("save_scanned_doc_button")
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Building Searchable PDF & Saving…", fontWeight = FontWeight.SemiBold)
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.PictureAsPdf,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = stringResource(R.string.save_and_create_pdf),
+                                textAlign = TextAlign.Center,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
             }

@@ -96,229 +96,269 @@ val LocalHudLiquidBackdrop = staticCompositionLocalOf<Backdrop?> { null }
  */
 fun isLiveBlurSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
-fun liquidSquircleShape(radius: Dp = 24.dp): RoundedRectangularShape = KyantRoundedRectangle(radius)
+private val CapsuleSingleton: RoundedRectangularShape = Capsule()
+private val Squircle20Singleton: RoundedRectangularShape = KyantRoundedRectangle(20.dp)
+private val Squircle22Singleton: RoundedRectangularShape = KyantRoundedRectangle(22.dp)
+private val Squircle24Singleton: RoundedRectangularShape = KyantRoundedRectangle(24.dp)
+private val Squircle28Singleton: RoundedRectangularShape = KyantRoundedRectangle(28.dp)
 
-fun liquidCapsuleShape(): RoundedRectangularShape = Capsule()
+val CapsuleShapeProvider: () -> Shape = { CapsuleSingleton }
+
+fun liquidSquircleShape(radius: Dp = 24.dp): RoundedRectangularShape = when (radius) {
+    20.dp -> Squircle20Singleton
+    22.dp -> Squircle22Singleton
+    24.dp -> Squircle24Singleton
+    28.dp -> Squircle28Singleton
+    else -> KyantRoundedRectangle(radius)
+}
+
+fun liquidCapsuleShape(): RoundedRectangularShape = CapsuleSingleton
 
 private fun Shape.supportsLensEffect(): Boolean =
     this is RoundedRectangularShape || this is AbsoluteRoundedCornerShape || this is CornerBasedShape
 
 object LiquidGlassTokens {
+    private val cardLightBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.88f),
+            Color(0xFFF3F8FF).copy(alpha = 0.76f),
+            Color.White.copy(alpha = 0.70f)
+        )
+    )
+    private val cardDarkBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF202E44).copy(alpha = 0.80f),
+            Color(0xFF141D2E).copy(alpha = 0.74f),
+            Color(0xFF0E1523).copy(alpha = 0.82f)
+        )
+    )
+    private val dockLightBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.94f),
+            Color(0xFFF3F8FF).copy(alpha = 0.86f),
+            Color.White.copy(alpha = 0.88f)
+        )
+    )
+    private val dockDarkBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF25354F).copy(alpha = 0.88f),
+            Color(0xFF141E30).copy(alpha = 0.84f),
+            Color(0xFF0E1524).copy(alpha = 0.90f)
+        )
+    )
+    private val subtleLightBrush = Brush.linearGradient(
+        colors = listOf(
+            Color.White.copy(alpha = 0.62f),
+            Color(0xFFE7EFFC).copy(alpha = 0.48f)
+        )
+    )
+    private val subtleDarkBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF283954).copy(alpha = 0.44f),
+            Color(0xFF182436).copy(alpha = 0.36f)
+        )
+    )
+    private val accentLightBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF2E95FF),
+            IosBlueLight,
+            Color(0xFF0062CC)
+        )
+    )
+    private val accentDarkBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFF3395FF),
+            IosBlueDark,
+            Color(0xFF0066CC)
+        )
+    )
+
+    private val accentBorder = BorderStroke(
+        width = 1.2.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.65f),
+                Color.White.copy(alpha = 0.16f),
+                Color.White.copy(alpha = 0.35f)
+            )
+        )
+    )
+    private val subtleLightBorder = BorderStroke(
+        width = 1.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.85f),
+                Color(0xFFC3D5EE).copy(alpha = 0.42f)
+            )
+        )
+    )
+    private val subtleDarkBorder = BorderStroke(
+        width = 1.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.16f),
+                Color.White.copy(alpha = 0.04f)
+            )
+        )
+    )
+    private val dockLightBorder = BorderStroke(
+        width = 1.2.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.98f),
+                Color(0xFFCAD8EC).copy(alpha = 0.48f),
+                Color.White.copy(alpha = 0.82f)
+            )
+        )
+    )
+    private val dockDarkBorder = BorderStroke(
+        width = 1.2.dp,
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.34f),
+                Color.White.copy(alpha = 0.10f),
+                Color(0xFF60A5FA).copy(alpha = 0.20f)
+            )
+        )
+    )
+    private val cardLightBorder = BorderStroke(width = 1.dp, brush = dockLightBorder.brush)
+    private val cardDarkBorder = BorderStroke(width = 1.dp, brush = dockDarkBorder.brush)
+
     fun surfaceGradient(tone: LiquidGlassTone, isDark: Boolean): Brush = when (tone) {
-        LiquidGlassTone.CARD -> if (isDark) {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF202E44).copy(alpha = 0.80f),
-                    Color(0xFF141D2E).copy(alpha = 0.74f),
-                    Color(0xFF0E1523).copy(alpha = 0.82f)
-                )
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.88f),
-                    Color(0xFFF3F8FF).copy(alpha = 0.76f),
-                    Color.White.copy(alpha = 0.70f)
-                )
-            )
-        }
-
-        LiquidGlassTone.DOCK -> if (isDark) {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF25354F).copy(alpha = 0.88f),
-                    Color(0xFF141E30).copy(alpha = 0.84f),
-                    Color(0xFF0E1524).copy(alpha = 0.90f)
-                )
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.94f),
-                    Color(0xFFF3F8FF).copy(alpha = 0.86f),
-                    Color.White.copy(alpha = 0.88f)
-                )
-            )
-        }
-
-        LiquidGlassTone.SUBTLE -> if (isDark) {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF283954).copy(alpha = 0.44f),
-                    Color(0xFF182436).copy(alpha = 0.36f)
-                )
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.62f),
-                    Color(0xFFE7EFFC).copy(alpha = 0.48f)
-                )
-            )
-        }
-
-        LiquidGlassTone.ACCENT -> if (isDark) {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF3395FF),
-                    IosBlueDark,
-                    Color(0xFF0066CC)
-                )
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF2E95FF),
-                    IosBlueLight,
-                    Color(0xFF0062CC)
-                )
-            )
-        }
+        LiquidGlassTone.CARD -> if (isDark) cardDarkBrush else cardLightBrush
+        LiquidGlassTone.DOCK -> if (isDark) dockDarkBrush else dockLightBrush
+        LiquidGlassTone.SUBTLE -> if (isDark) subtleDarkBrush else subtleLightBrush
+        LiquidGlassTone.ACCENT -> if (isDark) accentDarkBrush else accentLightBrush
     }
 
-    fun specularBorder(tone: LiquidGlassTone, isDark: Boolean): BorderStroke {
-        val width = if (tone == LiquidGlassTone.DOCK || tone == LiquidGlassTone.ACCENT) 1.2.dp else 1.dp
-        val brush = when (tone) {
-            LiquidGlassTone.ACCENT -> Brush.linearGradient(
-                colors = listOf(
-                    Color.White.copy(alpha = 0.65f),
-                    Color.White.copy(alpha = 0.16f),
-                    Color.White.copy(alpha = 0.35f)
-                )
-            )
-
-            LiquidGlassTone.SUBTLE -> if (isDark) {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.16f),
-                        Color.White.copy(alpha = 0.04f)
-                    )
-                )
-            } else {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.85f),
-                        Color(0xFFC3D5EE).copy(alpha = 0.42f)
-                    )
-                )
-            }
-
-            else -> if (isDark) {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.34f),
-                        Color.White.copy(alpha = 0.10f),
-                        Color(0xFF60A5FA).copy(alpha = 0.20f)
-                    )
-                )
-            } else {
-                Brush.linearGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.98f),
-                        Color(0xFFCAD8EC).copy(alpha = 0.48f),
-                        Color.White.copy(alpha = 0.82f)
-                    )
-                )
-            }
-        }
-        return BorderStroke(width = width, brush = brush)
+    fun specularBorder(tone: LiquidGlassTone, isDark: Boolean): BorderStroke = when (tone) {
+        LiquidGlassTone.ACCENT -> accentBorder
+        LiquidGlassTone.SUBTLE -> if (isDark) subtleDarkBorder else subtleLightBorder
+        LiquidGlassTone.DOCK -> if (isDark) dockDarkBorder else dockLightBorder
+        LiquidGlassTone.CARD -> if (isDark) cardDarkBorder else cardLightBorder
     }
 }
 
+private class AmbientFieldCache(private val isDark: Boolean) {
+    private var cachedWidth: Float = -1f
+    private var cachedHeight: Float = -1f
+    private val baseBrush: Brush = Brush.verticalGradient(
+        if (isDark) listOf(Color(0xFF040710), Color(0xFF080E1C), Color(0xFF050812))
+        else listOf(Color(0xFFE4EEFC), Color(0xFFF3F7FD), Color(0xFFE9F1FC))
+    )
+    private var c1 = Offset.Zero
+    private var r1 = 1f
+    private var b1: Brush? = null
+    private var c2 = Offset.Zero
+    private var r2 = 1f
+    private var b2: Brush? = null
+    private var c3 = Offset.Zero
+    private var r3 = 1f
+    private var b3: Brush? = null
+    private var c4 = Offset.Zero
+    private var r4 = 1f
+    private var b4: Brush? = null
+
+    fun draw(scope: DrawScope) {
+        val w = scope.size.width
+        val h = scope.size.height
+        if (w <= 0f || h <= 0f) return
+        if (w != cachedWidth || h != cachedHeight || b1 == null) {
+            cachedWidth = w
+            cachedHeight = h
+            c1 = Offset(w * 0.12f, h * 0.10f)
+            r1 = w * 0.72f
+            b1 = Brush.radialGradient(
+                colors = listOf(
+                    if (isDark) Color(0xFF2563EB).copy(alpha = 0.34f) else Color(0xFF60A5FA).copy(alpha = 0.36f),
+                    Color.Transparent
+                ),
+                center = c1,
+                radius = r1
+            )
+            c2 = Offset(w * 0.90f, h * 0.15f)
+            r2 = w * 0.56f
+            b2 = Brush.radialGradient(
+                colors = listOf(
+                    if (isDark) Color(0xFF0284C7).copy(alpha = 0.24f) else Color(0xFFFCD34D).copy(alpha = 0.28f),
+                    Color.Transparent
+                ),
+                center = c2,
+                radius = r2
+            )
+            c3 = Offset(w * 0.86f, h * 0.56f)
+            r3 = w * 0.65f
+            b3 = Brush.radialGradient(
+                colors = listOf(
+                    if (isDark) Color(0xFF4F46E5).copy(alpha = 0.22f) else Color(0xFF93C5FD).copy(alpha = 0.30f),
+                    Color.Transparent
+                ),
+                center = c3,
+                radius = r3
+            )
+            c4 = Offset(w * 0.18f, h * 0.88f)
+            r4 = w * 0.62f
+            b4 = Brush.radialGradient(
+                colors = listOf(
+                    if (isDark) Color(0xFF0D9488).copy(alpha = 0.18f) else Color(0xFF6EE7B7).copy(alpha = 0.22f),
+                    Color.Transparent
+                ),
+                center = c4,
+                radius = r4
+            )
+        }
+        scope.drawRect(brush = baseBrush)
+        b1?.let { scope.drawCircle(brush = it, center = c1, radius = r1) }
+        b2?.let { scope.drawCircle(brush = it, center = c2, radius = r2) }
+        b3?.let { scope.drawCircle(brush = it, center = c3, radius = r3) }
+        b4?.let { scope.drawCircle(brush = it, center = c4, radius = r4) }
+    }
+}
+
+private val LightAmbientCache = AmbientFieldCache(isDark = false)
+private val DarkAmbientCache = AmbientFieldCache(isDark = true)
+
 /**
- * Draws lush iOS-style ambient solar & glacial light field so real optical refraction behind
- * cards and floating HUD controls has vivid colors to bend and blur.
+ * Draws cached iOS-style ambient solar & glacial light field with zero per-frame
+ * allocations during 120Hz scrolling.
  */
 fun DrawScope.drawLiquidAmbientBackground(isDark: Boolean) {
-    val baseColors = if (isDark) {
-        listOf(Color(0xFF040710), Color(0xFF080E1C), Color(0xFF050812))
-    } else {
-        listOf(Color(0xFFE4EEFC), Color(0xFFF3F7FD), Color(0xFFE9F1FC))
-    }
-    drawRect(brush = Brush.verticalGradient(baseColors))
-
-    // Top-left glacial sapphire orb
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                if (isDark) Color(0xFF2563EB).copy(alpha = 0.34f) else Color(0xFF60A5FA).copy(alpha = 0.36f),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.12f, size.height * 0.10f),
-            radius = size.width * 0.72f
-        ),
-        center = Offset(size.width * 0.12f, size.height * 0.10f),
-        radius = size.width * 0.72f
-    )
-
-    // Top-right warm solar bloom
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                if (isDark) Color(0xFF0284C7).copy(alpha = 0.24f) else Color(0xFFFCD34D).copy(alpha = 0.28f),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.90f, size.height * 0.15f),
-            radius = size.width * 0.56f
-        ),
-        center = Offset(size.width * 0.90f, size.height * 0.15f),
-        radius = size.width * 0.56f
-    )
-
-    // Mid-right liquid cobalt bloom
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                if (isDark) Color(0xFF4F46E5).copy(alpha = 0.22f) else Color(0xFF93C5FD).copy(alpha = 0.30f),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.86f, size.height * 0.56f),
-            radius = size.width * 0.65f
-        ),
-        center = Offset(size.width * 0.86f, size.height * 0.56f),
-        radius = size.width * 0.65f
-    )
-
-    // Bottom-left aurora teal refraction glow
-    drawCircle(
-        brush = Brush.radialGradient(
-            colors = listOf(
-                if (isDark) Color(0xFF0D9488).copy(alpha = 0.18f) else Color(0xFF6EE7B7).copy(alpha = 0.22f),
-                Color.Transparent
-            ),
-            center = Offset(size.width * 0.18f, size.height * 0.88f),
-            radius = size.width * 0.62f
-        ),
-        center = Offset(size.width * 0.18f, size.height * 0.88f),
-        radius = size.width * 0.62f
-    )
+    val cache = if (isDark) DarkAmbientCache else LightAmbientCache
+    cache.draw(this)
 }
 
 @Composable
 fun rememberAmbientCanvasBackdrop(isDark: Boolean = LocalIsDarkTheme.current): Backdrop =
     rememberCanvasBackdrop { drawLiquidAmbientBackground(isDark = isDark) }
 
+private val DockLightShadow = Shadow(radius = 20.dp, color = Color(0xFF132D4E).copy(alpha = 0.14f))
+private val DockDarkShadow = Shadow(radius = 20.dp, color = Color.Black.copy(alpha = 0.44f))
+private val AccentInnerShadow = InnerShadow(radius = 8.dp, alpha = 0.24f)
+private val DockHighlightLight = Highlight.Default.copy(width = 0.85.dp, alpha = 0.94f)
+private val DockHighlightDark = Highlight.Default.copy(width = 0.85.dp, alpha = 0.72f)
+private val CardHighlightLight = Highlight.Default.copy(width = 0.6.dp, alpha = 0.94f)
+private val CardHighlightDark = Highlight.Default.copy(width = 0.6.dp, alpha = 0.72f)
+
 /**
  * Real optical Liquid Glass powered by `Kyant0/AndroidLiquidGlass` (`drawBackdrop`):
- * vibrancy + live RenderEffect blur + AGSL lens refraction & chromatic dispersion on Android 12/13+,
- * with tuned translucent surface fallback on older Android versions.
+ * vibrancy + live RenderEffect blur + AGSL lens refraction on Android 12/13+,
+ * tuned for zero-allocation 120 FPS rendering.
  */
 @Composable
 fun Modifier.opticalLiquidGlass(
     backdrop: Backdrop,
-    shape: () -> Shape = { liquidCapsuleShape() },
+    shape: () -> Shape = CapsuleShapeProvider,
     tone: LiquidGlassTone = LiquidGlassTone.DOCK,
     isDark: Boolean = LocalIsDarkTheme.current,
-    blurRadius: Dp = 8.dp,
+    blurRadius: Dp = 6.dp,
     refractionHeight: Dp = 16.dp,
-    refractionAmount: Dp = 28.dp,
-    chromaticAberration: Boolean = true,
+    refractionAmount: Dp = 26.dp,
+    chromaticAberration: Boolean = false,
     hasShadow: Boolean = true,
     pressProgress: Float = 0f
 ): Modifier {
     val liveBlur = isLiveBlurSupported()
-    val resolvedShape = remember(shape) { shape() }
-    val lensSafe = resolvedShape.supportsLensEffect()
+    val lensSafe = shape().supportsLensEffect()
 
     val surfaceColor = when (tone) {
         LiquidGlassTone.CARD -> if (liveBlur) {
@@ -345,15 +385,11 @@ fun Modifier.opticalLiquidGlass(
         }
     }
 
-    val shadowProvider: (() -> Shadow?)? = if (hasShadow) {
-        {
-            Shadow(
-                radius = 20.dp,
-                color = if (isDark) Color.Black.copy(alpha = 0.44f) else Color(0xFF132D4E).copy(alpha = 0.14f)
-            )
-        }
-    } else {
-        null
+    val shadowValue = if (isDark) DockDarkShadow else DockLightShadow
+    val shadowProvider: (() -> Shadow?)? = if (hasShadow) ({ shadowValue }) else null
+    val highlightValue = when (tone) {
+        LiquidGlassTone.DOCK, LiquidGlassTone.ACCENT -> if (isDark) DockHighlightDark else DockHighlightLight
+        else -> if (isDark) CardHighlightDark else CardHighlightLight
     }
 
     return this.drawBackdrop(
@@ -373,22 +409,19 @@ fun Modifier.opticalLiquidGlass(
                 )
             }
         },
-        highlight = {
-            Highlight.Default.copy(
-                width = if (tone == LiquidGlassTone.DOCK || tone == LiquidGlassTone.ACCENT) 0.85.dp else 0.6.dp,
-                alpha = if (isDark) 0.72f else 0.94f
-            )
-        },
+        highlight = { highlightValue },
         shadow = shadowProvider,
-        innerShadow = if (tone == LiquidGlassTone.ACCENT || pressProgress > 0f) {
-            {
-                InnerShadow(
-                    radius = 8.dp,
-                    alpha = if (tone == LiquidGlassTone.ACCENT) 0.24f else 0.18f * pressProgress
-                )
+        innerShadow = when {
+            tone == LiquidGlassTone.ACCENT -> { { AccentInnerShadow } }
+            pressProgress > 0f -> {
+                {
+                    InnerShadow(
+                        radius = 8.dp,
+                        alpha = 0.18f * pressProgress
+                    )
+                }
             }
-        } else {
-            null
+            else -> null
         },
         layerBlock = if (pressProgress > 0f) {
             {
@@ -466,9 +499,10 @@ fun LiquidGlassCard(
             shape = { shape },
             tone = tone,
             isDark = isDark,
-            blurRadius = if (tone == LiquidGlassTone.DOCK) 8.dp else 6.dp,
+            blurRadius = if (tone == LiquidGlassTone.DOCK) 6.dp else 5.dp,
             refractionHeight = if (tone == LiquidGlassTone.DOCK) 14.dp else 10.dp,
-            refractionAmount = if (tone == LiquidGlassTone.DOCK) 24.dp else 18.dp,
+            refractionAmount = if (tone == LiquidGlassTone.DOCK) 22.dp else 16.dp,
+            chromaticAberration = false,
             hasShadow = elevation > 0.dp
         )
     } else {
@@ -513,10 +547,10 @@ fun LiquidGlassPillButton(
     val surfaceMod = if (backdrop != null) {
         Modifier.opticalLiquidGlass(
             backdrop = backdrop,
-            shape = { liquidCapsuleShape() },
+            shape = CapsuleShapeProvider,
             tone = tone,
             isDark = isDark,
-            blurRadius = 6.dp,
+            blurRadius = 5.dp,
             refractionHeight = 14.dp,
             refractionAmount = 22.dp,
             chromaticAberration = tone == LiquidGlassTone.ACCENT,
@@ -571,6 +605,13 @@ data class LiquidDockTabItem(
     val testTag: String
 )
 
+private val DockActiveThumbDarkBrush = Brush.verticalGradient(
+    listOf(IosBlueDark.copy(alpha = 0.30f), Color(0xFF1D4ED8).copy(alpha = 0.22f))
+)
+private val DockActiveThumbLightBrush = Brush.verticalGradient(
+    listOf(IosBlueLight.copy(alpha = 0.16f), Color(0xFF60A5FA).copy(alpha = 0.10f))
+)
+
 /**
  * Interactive iOS 26 Liquid Glass Pill Dock powered by `Kyant0/AndroidLiquidGlass`:
  * live blurs & refracts scrolled content underneath, and features a spring-gliding
@@ -592,7 +633,7 @@ fun LiquidGlassTabDock(
     val targetPos = if (isDragging > 0.5f) dragIndexOffset else selectedIndex.toFloat()
     val animatedIndex by animateFloatAsState(
         targetValue = targetPos.coerceIn(0f, (tabs.size - 1).toFloat()),
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 420f),
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 460f),
         label = "liquid_dock_slide"
     )
 
@@ -601,13 +642,13 @@ fun LiquidGlassTabDock(
             .height(64.dp)
             .opticalLiquidGlass(
                 backdrop = backdrop,
-                shape = { liquidCapsuleShape() },
+                shape = CapsuleShapeProvider,
                 tone = LiquidGlassTone.DOCK,
                 isDark = isDark,
-                blurRadius = 9.dp,
-                refractionHeight = 18.dp,
-                refractionAmount = 30.dp,
-                chromaticAberration = true,
+                blurRadius = 6.dp,
+                refractionHeight = 16.dp,
+                refractionAmount = 26.dp,
+                chromaticAberration = false,
                 hasShadow = true
             )
             .padding(horizontal = 4.dp, vertical = 4.dp)
@@ -624,7 +665,7 @@ fun LiquidGlassTabDock(
                 .fillMaxHeight()
                 .opticalLiquidGlass(
                     backdrop = backdrop,
-                    shape = { liquidCapsuleShape() },
+                    shape = CapsuleShapeProvider,
                     tone = LiquidGlassTone.SUBTLE,
                     isDark = isDark,
                     blurRadius = 0.dp,
@@ -635,13 +676,7 @@ fun LiquidGlassTabDock(
                     pressProgress = isDragging * 0.8f
                 )
                 .background(
-                    brush = Brush.verticalGradient(
-                        if (isDark) {
-                            listOf(IosBlueDark.copy(alpha = 0.30f), Color(0xFF1D4ED8).copy(alpha = 0.22f))
-                        } else {
-                            listOf(IosBlueLight.copy(alpha = 0.16f), Color(0xFF60A5FA).copy(alpha = 0.10f))
-                        }
-                    ),
+                    brush = if (isDark) DockActiveThumbDarkBrush else DockActiveThumbLightBrush,
                     shape = CircleShape
                 )
                 .border(

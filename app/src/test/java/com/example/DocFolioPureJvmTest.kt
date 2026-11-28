@@ -747,4 +747,25 @@ class DocFolioPureJvmTest {
         assertNotNull(com.example.ui.theme.liquidSquircleShape())
         assertNotNull(com.example.ui.theme.liquidCapsuleShape())
     }
+
+    @Test
+    fun displayRefreshHelper_selectsHighestRefreshRateMatchingCurrentResolution() {
+        val fhd60 = com.example.util.RefreshModeSpec(modeId = 1, width = 1080, height = 2400, refreshRate = 60f)
+        val fhd120 = com.example.util.RefreshModeSpec(modeId = 2, width = 1080, height = 2400, refreshRate = 120f)
+        val hd144 = com.example.util.RefreshModeSpec(modeId = 3, width = 720, height = 1600, refreshRate = 144f)
+
+        val picked = com.example.util.DisplayRefreshHelper.selectBestMode(
+            currentMode = fhd60,
+            supportedModes = listOf(fhd60, fhd120, hd144)
+        )
+        assertEquals(2, picked?.modeId)
+        assertEquals(120f, picked?.refreshRate)
+
+        val fallback = com.example.util.DisplayRefreshHelper.selectBestMode(
+            currentMode = null,
+            supportedModes = listOf(fhd60, fhd120)
+        )
+        assertEquals(2, fallback?.modeId)
+        assertEquals(null, com.example.util.DisplayRefreshHelper.selectBestMode(null, emptyList()))
+    }
 }

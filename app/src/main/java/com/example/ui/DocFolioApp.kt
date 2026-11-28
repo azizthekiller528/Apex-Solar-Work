@@ -415,13 +415,18 @@ fun DocFolioApp(
             mutableStateOf(if (useNavigationRail) navBottom + 16.dp else navBottom + 86.dp)
         }
 
-        val dockTabs = MainTab.entries.map { tab ->
-            LiquidDockTabItem(
-                id = tab.name,
-                label = stringResource(tab.labelRes),
-                selectedIcon = tab.selectedIcon,
-                unselectedIcon = tab.unselectedIcon,
-                testTag = tab.testTag
+        val vaultLabel = stringResource(MainTab.VAULT.labelRes)
+        val byDateLabel = stringResource(MainTab.BY_DATE.labelRes)
+        val expensesLabel = stringResource(MainTab.EXPENSES.labelRes)
+        val sitesLabel = stringResource(MainTab.SITES.labelRes)
+        val starredLabel = stringResource(MainTab.STARRED.labelRes)
+        val dockTabs = remember(vaultLabel, byDateLabel, expensesLabel, sitesLabel, starredLabel) {
+            listOf(
+                LiquidDockTabItem(MainTab.VAULT.name, vaultLabel, MainTab.VAULT.selectedIcon, MainTab.VAULT.unselectedIcon, MainTab.VAULT.testTag),
+                LiquidDockTabItem(MainTab.BY_DATE.name, byDateLabel, MainTab.BY_DATE.selectedIcon, MainTab.BY_DATE.unselectedIcon, MainTab.BY_DATE.testTag),
+                LiquidDockTabItem(MainTab.EXPENSES.name, expensesLabel, MainTab.EXPENSES.selectedIcon, MainTab.EXPENSES.unselectedIcon, MainTab.EXPENSES.testTag),
+                LiquidDockTabItem(MainTab.SITES.name, sitesLabel, MainTab.SITES.selectedIcon, MainTab.SITES.unselectedIcon, MainTab.SITES.testTag),
+                LiquidDockTabItem(MainTab.STARRED.name, starredLabel, MainTab.STARRED.selectedIcon, MainTab.STARRED.unselectedIcon, MainTab.STARRED.testTag)
             )
         }
 

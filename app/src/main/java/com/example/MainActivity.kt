@@ -17,6 +17,7 @@ import com.example.ui.DocFolioApp
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.DocFolioTheme
 import com.example.ui.theme.ThemePreferenceStore
+import com.example.util.DisplayRefreshHelper
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 
@@ -27,8 +28,9 @@ class MainActivity : ComponentActivity() {
         // STEP 1: Configure Firebase App Check with launch intent before UI, ViewModels, or Firebase ops
         configureAppCheck(this, intent)
 
-        // STEP 2: Enable edge-to-edge display and render Compose UI with Day/Night/System theme state
+        // STEP 2: Enable edge-to-edge and unlock highest same-res refresh rate (120Hz/LTPO)
         enableEdgeToEdge()
+        DisplayRefreshHelper.applyHighestRefreshRate(this)
         setContent {
             var themeMode by remember {
                 mutableStateOf(ThemePreferenceStore.loadThemeMode(this@MainActivity))
@@ -66,6 +68,18 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        DisplayRefreshHelper.applyHighestRefreshRate(this)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            DisplayRefreshHelper.applyHighestRefreshRate(this)
         }
     }
 }

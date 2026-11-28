@@ -493,7 +493,11 @@ fun DateLookupScreen(
                     }
                 }
             } else {
-                items(items = docsForSelectedDate, key = { it.id }) { doc ->
+                items(
+                    items = docsForSelectedDate,
+                    key = { it.id },
+                    contentType = { "doc_card" }
+                ) { doc ->
                     DocumentLedgerCard(
                         doc = doc,
                         onClick = { onOpenDocument(doc) },

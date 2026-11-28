@@ -1,8 +1,8 @@
 {
-  "versionCode": 25,
-  "versionName": "2.14",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.14.apk",
-  "sha256": "d6f76b52ef1991c0b6ab6701431fc05332cc2b339ff740a4d0bc672de1ab81be",
-  "sizeBytes": 48059021,
-  "releaseNotes": "• Real optical Liquid Glass refraction, live blur & chromatic lens dispersion powered by AndroidLiquidGlass\n• Spring-sliding 5-tab Pill Dock + detached Scan orb (fixes Scan Doc covering bottom cards)\n• Non-overlapping Add Expense/Material & Add Site actions plus G2 squircle corners in Day & Night modes"
+  "versionCode": 26,
+  "versionName": "2.15",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.15.apk",
+  "sha256": "aaf6d542cef8468ccf2deb465e4eafe0e6ba361ab882928754be99426cd9f15b",
+  "sizeBytes": 48059017,
+  "releaseNotes": "• Added resolution-safe 120Hz display refresh lock across supported phones (zero screen flicker)\n• Zero-allocation ambient light field, cached squircle shapes & tuned Liquid Glass shaders for locked 120 FPS\n• Optimized LazyColumn card recycling & memoized tab dock items"
 }

@@ -750,22 +750,30 @@ class DocFolioPureJvmTest {
 
     @Test
     fun displayRefreshHelper_selectsHighestRefreshRateMatchingCurrentResolution() {
-        val fhd60 = com.example.util.RefreshModeSpec(modeId = 1, width = 1080, height = 2400, refreshRate = 60f)
-        val fhd120 = com.example.util.RefreshModeSpec(modeId = 2, width = 1080, height = 2400, refreshRate = 120f)
-        val hd144 = com.example.util.RefreshModeSpec(modeId = 3, width = 720, height = 1600, refreshRate = 144f)
+        val fhd60 = com.example.util.RefreshModeSpec(modeId = 4, width = 1260, height = 2800, refreshRate = 60.000004f)
+        val fhd90 = com.example.util.RefreshModeSpec(modeId = 3, width = 1260, height = 2800, refreshRate = 90f)
+        val fhd120 = com.example.util.RefreshModeSpec(modeId = 1, width = 1260, height = 2800, refreshRate = 120.00001f)
+        val fhd144Private = com.example.util.RefreshModeSpec(modeId = 2, width = 1260, height = 2800, refreshRate = 144.00002f)
+        val hd144 = com.example.util.RefreshModeSpec(modeId = 5, width = 720, height = 1600, refreshRate = 144f)
 
         val picked = com.example.util.DisplayRefreshHelper.selectBestMode(
             currentMode = fhd60,
-            supportedModes = listOf(fhd60, fhd120, hd144)
+            supportedModes = listOf(fhd120, fhd144Private, fhd90, fhd60, hd144)
         )
-        assertEquals(2, picked?.modeId)
-        assertEquals(120f, picked?.refreshRate)
+        assertEquals(1, picked?.modeId)
+        assertEquals(120.00001f, picked?.refreshRate)
 
-        val fallback = com.example.util.DisplayRefreshHelper.selectBestMode(
+        val fallback144Only = com.example.util.DisplayRefreshHelper.selectBestMode(
+            currentMode = fhd60,
+            supportedModes = listOf(fhd60, fhd144Private)
+        )
+        assertEquals(2, fallback144Only?.modeId)
+
+        val fallbackNoCurrent = com.example.util.DisplayRefreshHelper.selectBestMode(
             currentMode = null,
             supportedModes = listOf(fhd60, fhd120)
         )
-        assertEquals(2, fallback?.modeId)
+        assertEquals(1, fallbackNoCurrent?.modeId)
         assertEquals(null, com.example.util.DisplayRefreshHelper.selectBestMode(null, emptyList()))
     }
 }

@@ -1,8 +1,8 @@
 {
-  "versionCode": 26,
-  "versionName": "2.15",
-  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.15.apk",
-  "sha256": "aaf6d542cef8468ccf2deb465e4eafe0e6ba361ab882928754be99426cd9f15b",
+  "versionCode": 27,
+  "versionName": "2.16",
+  "apkUrl": "https://raw.githubusercontent.com/azizthekiller528/Apex-Solar-Work/main/Apex_Solar_Work_v2.16.apk",
+  "sha256": "3bf603fcf0ba9fd2c6d0c82662af92461c8f419957d6d199780c7ba27914c735",
   "sizeBytes": 48059017,
-  "releaseNotes": "• Added resolution-safe 120Hz display refresh lock across supported phones (zero screen flicker)\n• Zero-allocation ambient light field, cached squircle shapes & tuned Liquid Glass shaders for locked 120 FPS\n• Optimized LazyColumn card recycling & memoized tab dock items"
+  "releaseNotes": "• Fixed 120Hz selection on dual 120Hz/144Hz phones (avoids game-only 144Hz fallback to 60Hz)\n• Enabled Android 15/16 Adaptive Refresh Rate touch boost, disabled power-save throttling & requested explicit 120Hz on attached root Compose view\n• Re-applies refresh rate cleanly after decorView attaches"
 }

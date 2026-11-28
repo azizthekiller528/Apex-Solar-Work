@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         // STEP 1: Configure Firebase App Check with launch intent before UI, ViewModels, or Firebase ops
         configureAppCheck(this, intent)
 
-        // STEP 2: Enable edge-to-edge and unlock highest same-res refresh rate (120Hz/LTPO)
+        // STEP 2: Enable edge-to-edge and unlock highest same-res refresh rate (120Hz/ARR)
         enableEdgeToEdge()
         DisplayRefreshHelper.applyHighestRefreshRate(this)
         setContent {
@@ -68,6 +68,9 @@ class MainActivity : ComponentActivity() {
                     }
                 )
             }
+        }
+        window.decorView.post {
+            DisplayRefreshHelper.applyHighestRefreshRate(this)
         }
     }
 
